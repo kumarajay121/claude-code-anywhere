@@ -6,7 +6,7 @@ No frameworks. No build step. One setup script and you're talking to Claude Code
 
 ## Quick Start (Recommended)
 
-Clone the repo and run the setup script — it checks prerequisites, installs anything missing, and starts the bridge:
+Clone the repo in devbox and run the setup script — it checks prerequisites, installs anything missing, and starts the bridge:
 
 **Windows (PowerShell):**
 ```powershell

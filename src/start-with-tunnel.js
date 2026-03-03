@@ -9,7 +9,7 @@
  *
  * Flags:
  *   --tunnel <name>       Start devtunnel with this tunnel name
- *   --allow-org           Allow anyone in your AAD tenant (default: your account only)
+ *   --allow-org           Allow anyone with the link (default: your Microsoft account only)
  *   --auto-reconnect      Restart devtunnel automatically if it dies (requires --tunnel)
  *   --reconnect-delay <s> Seconds to wait before reconnecting (default: 5)
  *   --max-retries <n>     Max consecutive reconnect attempts before giving up (default: 0 = unlimited)
@@ -70,11 +70,12 @@ let tunnelStopping = false;
 function ensureTunnelExists() {
   const devtunnelBin = findDevtunnel();
   const port = process.env.BRIDGE_PORT || '3847';
-  const access = allowOrg ? 'org' : 'private';
+  const accessFlag = allowOrg ? '--allow-anonymous' : '';
 
   // Try to create the tunnel (ignore error if it already exists)
+  // Default: private (only your Microsoft account). Use --allow-org for AAD tenant.
   try {
-    execSync(`"${devtunnelBin}" create ${tunnelName} --allow-anonymous`, { stdio: 'pipe', shell: true });
+    execSync(`"${devtunnelBin}" create ${tunnelName} ${accessFlag}`.trim(), { stdio: 'pipe', shell: true });
     console.log(`Created tunnel "${tunnelName}"`);
   } catch {
     // Tunnel likely already exists — that's fine
@@ -95,7 +96,7 @@ function startTunnel() {
 
   ensureTunnelExists();
 
-  const accessLabel = allowOrg ? 'org-wide (AAD tenant)' : 'anonymous access';
+  const accessLabel = allowOrg ? 'anonymous access (anyone with link)' : 'private (your Microsoft account only)';
   console.log(`\nStarting devtunnel "${tunnelName}" (${accessLabel})...`);
   const tunnelArgs = ['host', tunnelName];
   const devtunnelBin = findDevtunnel();
