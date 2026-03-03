@@ -1,0 +1,15 @@
+{
+  "name": "claude-code-web-bridge",
+  "version": "1.0.0",
+  "description": "Web-based remote control for Claude Code CLI — access from your phone via devtunnel",
+  "type": "module",
+  "main": "src/web-bridge.js",
+  "scripts": {
+    "start": "node src/web-bridge.js",
+    "start:tunnel": "node src/start-with-tunnel.js --tunnel claude-bridge",
+    "start:tunnel:auto": "node src/start-with-tunnel.js --tunnel claude-bridge --auto-reconnect"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
