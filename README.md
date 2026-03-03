@@ -2,7 +2,46 @@
 
 A lightweight Node.js web server that gives you a beautiful chat UI for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code), accessible from any device — your phone, tablet, or another laptop — via a browser.
 
-No frameworks. No build step. Just `npm start` and you're talking to Claude Code remotely.
+No frameworks. No build step. One setup script and you're talking to Claude Code remotely.
+
+## Quick Start (Recommended)
+
+Clone the repo and run the setup script — it checks prerequisites, installs anything missing, and starts the bridge:
+
+**Windows (PowerShell):**
+```powershell
+git clone <repo-url>
+cd claude-code-web-bridge
+.\setup.ps1
+```
+
+**macOS / Linux:**
+```bash
+git clone <repo-url>
+cd claude-code-web-bridge
+chmod +x setup.sh
+./setup.sh
+```
+
+By default, the setup script starts with **remote access** — you get a public HTTPS URL and a QR code to scan from your phone.
+
+To start **without tunnel** (localhost only):
+```powershell
+# Windows
+.\setup.ps1 -LocalOnly
+
+# macOS / Linux
+./setup.sh --local-only
+```
+
+The setup script will:
+1. Check for Node.js v18+ (offers to install if missing)
+2. Check for Claude Code CLI (offers to install + guides authentication)
+3. Check for devtunnel (offers to install + login if missing)
+4. Run `npm install`
+5. Start the bridge with tunnel, QR code, and public URL
+
+> After the first run, you can skip the setup script and just use `npm start` or `npm run start:tunnel`.
 
 ## Features
 
@@ -17,93 +56,48 @@ No frameworks. No build step. Just `npm start` and you're talking to Claude Code
 - **Terminal import** — discover and take over Claude sessions running in your terminal
 - **QR code** — scan in terminal or sidebar to open on your phone instantly
 
-## Prerequisites
+## Manual Setup
 
-### 1. Node.js (v18 or later)
+If you prefer to set things up yourself instead of using the setup script:
 
-Check if you have it:
-```bash
-node --version
-```
-If not installed, download from [nodejs.org](https://nodejs.org/) or:
-```bash
-# Windows
-winget install OpenJS.NodeJS.LTS
+### Prerequisites
 
-# macOS
-brew install node
-```
+1. **Node.js v18+** — [nodejs.org](https://nodejs.org/) or `winget install OpenJS.NodeJS.LTS`
+2. **Claude Code CLI** — install and authenticate:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   claude   # run once to sign in
+   ```
+3. **(Optional) devtunnel** — only for remote access:
+   ```bash
+   winget install Microsoft.devtunnel   # Windows
+   brew install --cask devtunnel        # macOS
+   curl -sL https://aka.ms/DevTunnelCliInstall | bash   # Linux
+   ```
+   Then: `devtunnel user login`
 
-### 2. Claude Code CLI
-
-Install and authenticate:
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-Then run it once to complete authentication:
-```bash
-claude
-```
-
-Follow the prompts to sign in with your Anthropic account. You must have an active Claude Pro/Team/Enterprise subscription, or API access.
-
-### 3. devtunnel (optional — only for remote access)
-
-Only needed if you want to access from your phone or another device.
-
-```bash
-# Windows
-winget install Microsoft.devtunnel
-
-# macOS
-brew install --cask devtunnel
-
-# Linux
-curl -sL https://aka.ms/DevTunnelCliInstall | bash
-```
-
-Then login with your Microsoft account:
-```bash
-devtunnel user login
-```
-
-## Setup
-
-### 1. Clone the repo
+### Install & Run
 
 ```bash
 git clone <repo-url>
 cd claude-code-web-bridge
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
 ```
 
-That's it. No `.env` file is needed — the bridge auto-discovers the Claude binary and uses sensible defaults.
-
-### 3. Start the bridge
-
-**Option A — Local only** (same machine):
+**Local only** — open [http://localhost:3847](http://localhost:3847):
 ```bash
 npm start
 ```
-Open [http://localhost:3847](http://localhost:3847) in your browser.
 
-**Option B — With remote access** (access from phone/tablet):
+**With remote access** — public HTTPS URL + QR code:
 ```bash
 npm run start:tunnel
 ```
-A public HTTPS URL and QR code will appear in your terminal. Open that URL on any device.
 
-**Option C — Auto-reconnecting tunnel** (for long sessions):
+**Auto-reconnecting tunnel** — for long sessions:
 ```bash
 npm run start:tunnel:auto
 ```
-Same as Option B, but auto-restarts the tunnel if it disconnects.
 
 ## Usage
 
@@ -161,8 +155,7 @@ Claude CLI is not in PATH or the expected locations. Fix:
 # Verify Claude is installed
 claude --version
 
-# If installed but not found, set the path explicitly
-# Create a .env file with:
+# If installed but not found, set the path explicitly in .env:
 CLAUDE_PATH=C:\Users\<you>\.claude\local\claude.exe
 ```
 
