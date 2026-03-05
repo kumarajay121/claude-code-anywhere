@@ -135,29 +135,42 @@ The **Terminal** section in the sidebar shows Claude sessions running in your ac
 
 ## Microsoft Teams Integration
 
-Chat with Claude directly from a Teams channel using Outgoing Webhooks. Claude's responses appear as channel messages, triggering native Teams notifications on all your devices.
+Chat with Claude directly from a Teams channel using Outgoing Webhooks. Claude's responses appear as channel messages, triggering **native Teams notifications** on all your devices (desktop + mobile).
 
-### Setup
+> **Why two tunnels?** Devtunnel has an anti-phishing interstitial page that blocks server-to-server webhook calls from Teams. Cloudflare tunnel is used alongside devtunnel specifically for the Teams webhook — it forwards requests directly without interstitials.
 
-**Prerequisites:** Install `cloudflared` (needed because devtunnel's interstitial page blocks server-to-server webhook calls from Teams):
+### Prerequisites
+
+Install `cloudflared`:
 ```bash
 winget install Cloudflare.cloudflared   # Windows
 brew install cloudflared                 # macOS
 ```
 
-**Step 1: Start the Cloudflare tunnel** (in a separate terminal — keep it running):
+### Setup
+
+You'll run **two terminals** side by side:
+
+**Terminal 1 — Cloudflare tunnel** (start once, keep running):
 ```bash
 npm run cloudflare
 ```
-This prints a stable URL like `https://xxx.trycloudflare.com`. The URL stays the same as long as this process runs. You can restart the bridge without losing it.
+This prints a stable URL like `https://xxx.trycloudflare.com`. The URL stays the same as long as this process runs. You can restart the bridge in Terminal 2 without losing this URL.
 
-**Step 2: Create an Outgoing Webhook**
+**Terminal 2 — Bridge + devtunnel** (for web UI + QR code):
+```bash
+npm run start:tunnel
+```
+
+### One-time Teams setup
+
+**Step 1: Create an Outgoing Webhook**
 1. Open Teams → go to the channel where you want Claude
 2. Click `...` next to the channel name → **Manage channel**
 3. Go to **Apps** tab → **Create an outgoing webhook**
 4. Fill in:
    - **Name**: `ClaudeCode`
-   - **Callback URL**: `https://<cloudflare-url>/api/teams-webhook` (use the URL from step 1)
+   - **Callback URL**: `https://<cloudflare-url>/api/teams-webhook` (use the URL from Terminal 1)
    - **Description**: Chat with Claude Code
 5. Click **Create** → copy the **HMAC security token**
 
@@ -166,19 +179,20 @@ This prints a stable URL like `https://xxx.trycloudflare.com`. The URL stays the
 2. Choose **"Send webhook alerts to a channel"**
 3. Pick the same channel → Create → copy the **webhook URL**
 
-**Step 3: Configure `.env`**
+**Step 3: Add tokens to `.env`**
 ```bash
 TEAMS_WEBHOOK_SECRET=<HMAC-token-from-step-1>
 TEAMS_INCOMING_WEBHOOK_URL=<URL-from-step-2>
 ```
+No restart needed — the bridge reads `.env` dynamically.
 
-**Step 4:** Restart the bridge and type `@ClaudeCode <your question>` in the channel.
+**Step 4:** Type `@ClaudeCode <your question>` in the channel.
 
 ### How it works
 - **Quick tasks** (< 8s): Claude responds inline in the channel
 - **Long tasks** (> 8s): Returns "Working on it..." immediately, posts the full response via Incoming Webhook when done
 - **Session persistence**: Each Teams user gets their own Claude session — context is preserved across messages
-- **Adaptive Cards**: Long responses are formatted as Adaptive Cards in the channel
+- **Native notifications**: Channel messages trigger Teams notifications on desktop and mobile
 
 ## Optional Configuration
 

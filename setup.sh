@@ -153,13 +153,41 @@ if [ "$TUNNEL" = true ]; then
   fi
 fi
 
-# ── 4. npm install ──
+# ── 4. Check cloudflared (optional, for Teams integration) ──
+step "Checking cloudflared (for Teams integration)..."
+if command -v cloudflared &>/dev/null; then
+  ok "cloudflared found in PATH"
+else
+  warn "cloudflared not found (optional - only needed for Teams integration)."
+  if [[ "$OSTYPE" == "darwin"* ]] && command -v brew &>/dev/null; then
+    echo -n "   Install via Homebrew? (Y/n) "
+    read -r ans
+    if [ "$ans" != "n" ]; then
+      brew install cloudflared
+      ok "cloudflared installed"
+    else
+      warn "Skipping cloudflared. Teams webhook integration will not be available."
+    fi
+  elif [[ "$OSTYPE" == "linux"* ]]; then
+    echo -n "   Install via official script? (Y/n) "
+    read -r ans
+    if [ "$ans" != "n" ]; then
+      curl -sL https://pkg.cloudflare.com/cloudflared-stable-linux-amd64.deb -o /tmp/cloudflared.deb && sudo dpkg -i /tmp/cloudflared.deb
+      ok "cloudflared installed"
+    else
+      warn "Skipping cloudflared. Teams webhook integration will not be available."
+    fi
+  else
+    warn "Install manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+  fi
+fi
+
 step "Installing project dependencies..."
 cd "$SCRIPT_DIR"
 npm install --silent 2>/dev/null || npm install
 ok "Dependencies installed"
 
-# ── 5. Start ──
+# ── Start ──
 if [ "$SKIP_START" = true ]; then
   echo ""
   echo -e "\033[32m================================================\033[0m"
@@ -169,6 +197,7 @@ if [ "$SKIP_START" = true ]; then
   echo "   To start locally:              npm start"
   echo "   To start with tunnel:          npm run start:tunnel"
   echo "   To start with auto-reconnect:  npm run start:tunnel:auto"
+  echo "   For Teams webhook tunnel:      npm run cloudflare"
   echo ""
   exit 0
 fi

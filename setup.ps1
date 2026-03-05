@@ -173,7 +173,28 @@ if ($Tunnel) {
     }
 }
 
-# -- 4. npm install --
+# -- 4. Check cloudflared (optional, for Teams integration) --
+Write-Step 'Checking cloudflared (for Teams integration)...'
+$cfFound = Get-Command cloudflared -ErrorAction SilentlyContinue
+if (-not $cfFound) {
+    $cfPath = Join-Path ${env:ProgramFiles(x86)} 'cloudflared\cloudflared.exe'
+    if (Test-Path $cfPath) { $cfFound = $true }
+}
+if ($cfFound) {
+    Write-Ok 'cloudflared found'
+} else {
+    Write-Warn 'cloudflared not found (optional - only needed for Teams integration).'
+    $install = Read-Host '   Install via winget? (Y/n)'
+    if ($install -ne 'n') {
+        Write-Host '   Installing cloudflared...' -ForegroundColor Gray
+        & winget install Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements
+        Refresh-Path
+        Write-Ok 'cloudflared installed'
+    } else {
+        Write-Warn 'Skipping cloudflared. Teams webhook integration will not be available.'
+    }
+}
+
 Write-Step 'Installing project dependencies...'
 $projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Push-Location $projectDir
@@ -192,7 +213,7 @@ try {
     Pop-Location
 }
 
-# -- 5. Start --
+# -- Start --
 if ($SkipStart) {
     Write-Host ''
     Write-Host '================================================' -ForegroundColor Green
@@ -202,6 +223,7 @@ if ($SkipStart) {
     Write-Host '   To start locally:              npm start' -ForegroundColor White
     Write-Host '   To start with tunnel:          npm run start:tunnel' -ForegroundColor White
     Write-Host '   To start with auto-reconnect:  npm run start:tunnel:auto' -ForegroundColor White
+    Write-Host '   For Teams webhook tunnel:      npm run cloudflare' -ForegroundColor White
     Write-Host ''
     exit 0
 }
