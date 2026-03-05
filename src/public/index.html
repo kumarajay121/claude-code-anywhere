@@ -1032,11 +1032,35 @@ function startProgressUpdates() {
   }, 5000);
 
   let lastPartialLen = 0;
+  let heartbeatWasBusy = true;
   heartbeatTimer = setInterval(async () => {
     try {
       const res = await fetch(`/api/sessions/${currentSessionId}`);
       const data = await res.json();
-      if (!data.busy) return;
+      if (!data.busy) {
+        // Claude just finished — recover the response
+        if (heartbeatWasBusy && awaitingResponse) {
+          heartbeatWasBusy = false;
+          try {
+            const msgRes = await fetch(`/api/sessions/${currentSessionId}/messages`);
+            const { messages } = await msgRes.json();
+            const lastBot = [...messages].reverse().find(m => m.role === 'bot');
+            if (lastBot) {
+              hideTyping(); stopElapsedTimer();
+              document.getElementById('live-preview-row')?.remove();
+              clearInterval(progressTimer);
+              addMsg('bot', lastBot.text, lastBot.time);
+              awaitingResponse = false; sendBtn.disabled = false; setStatus('ready'); msgInput.focus();
+              // Stop heartbeat after rendering
+              clearInterval(heartbeatTimer);
+              notify('Claude responded', (lastBot.text || '').substring(0, 100));
+              loadSessions();
+            }
+          } catch {}
+        }
+        return;
+      }
+      heartbeatWasBusy = true;
       const el = document.getElementById('elapsed');
       if (el) el.title = `Server: ${Math.floor(data.elapsed/60000)}m${Math.floor((data.elapsed%60000)/1000)}s`;
       if (data.partialOutput && data.partialOutput.length > lastPartialLen) {
@@ -1058,7 +1082,7 @@ function startProgressUpdates() {
         chat.scrollTop = chat.scrollHeight;
       }
     } catch {}
-  }, 5000);
+  }, 3000);
 }
 function stopProgressUpdates() { clearInterval(progressTimer); clearInterval(heartbeatTimer); document.getElementById('live-preview-row')?.remove(); }
 
@@ -1109,6 +1133,13 @@ async function send(text, mode) {
       return;
     }
 
+    // 202 accepted — server started Claude in background, poll for result
+    if (res.status === 202 && data.accepted) {
+      // Polling handled by heartbeat — nothing more to do here
+      return;
+    }
+
+    // Slash commands and errors return synchronously
     hideTyping();
     if (!res.ok && data.error) {
       if (res.status === 409) {
@@ -1119,37 +1150,19 @@ async function send(text, mode) {
         document.getElementById('sys-toggle').textContent = '\u25BE';
         systemSessionsVisible = true; await loadSystemSessions(); msgInput.value = text;
       } else { addMsg('bot', data.error); msgInput.value = text; document.getElementById('retry-btn').style.display = 'inline-block'; }
+      awaitingResponse = false; sendBtn.disabled = false; setStatus('ready'); stopElapsedTimer(); stopProgressUpdates();
     } else {
       const reply = data.response || data.error;
-      if (reply) addMsg('bot', reply);
-      else addMsg('bot', 'Claude is still working on this. Check back shortly.');
+      if (reply) {
+        addMsg('bot', reply);
+        awaitingResponse = false; sendBtn.disabled = false; setStatus('ready'); msgInput.focus(); stopElapsedTimer(); stopProgressUpdates();
+      }
     }
     loadSessions();
     notify('Claude responded', (data.response || data.error || '').substring(0, 100));
   } catch (e) {
-    hideTyping();
-    let recovered = false;
-    if (!(e instanceof SyntaxError)) {
-      try {
-        const msgRes = await fetch(`/api/sessions/${currentSessionId}/messages`);
-        const { messages } = await msgRes.json();
-        const lastBot = [...messages].reverse().find(m => m.role === 'bot');
-        const lastUser = [...messages].reverse().find(m => m.role === 'user');
-        if (lastBot && lastUser && new Date(lastBot.time) >= new Date(lastUser.time)) {
-          addMsg('bot', lastBot.text, lastBot.time);
-          addSystemMsg('Connection interrupted but response recovered.');
-          recovered = true;
-        }
-      } catch {}
-    }
-    if (!recovered) {
-      addMsg('bot', e instanceof SyntaxError ? 'Invalid response from server. Try again.' : 'Could not reach the bridge server. It may be restarting.');
-      msgInput.value = text; document.getElementById('retry-btn').style.display = 'inline-block';
-    }
-  } finally {
-    awaitingResponse = false;
-    if (mode === 'queue') { currentQueuedText = null; removeQueueIndicator(); }
-    if (mode || isNewRequest) { sendBtn.disabled = false; setStatus('ready'); msgInput.focus(); stopElapsedTimer(); stopProgressUpdates(); }
+    // Network error — don't panic, heartbeat polling will recover the response
+    console.log('Message send error (heartbeat will recover):', e.message);
   }
 }
 
@@ -1433,9 +1446,33 @@ async function loadQRCode() {
 if (window.innerWidth > 640) document.getElementById('sidebar').classList.remove('hidden');
 loadSessions();
 loadQRCode();
+let bgPollWasBusy = false;
 setInterval(async () => {
   if (!currentSessionId) return;
-  try { const res = await fetch(`/api/sessions/${currentSessionId}`); const text = await res.text(); if (!text) return; const { busy } = JSON.parse(text); setStatus(busy ? 'busy' : 'ready'); } catch {}
+  try {
+    const res = await fetch(`/api/sessions/${currentSessionId}`);
+    const text = await res.text(); if (!text) return;
+    const { busy } = JSON.parse(text);
+    setStatus(busy ? 'busy' : 'ready');
+    // Recover response if heartbeat hasn't already
+    if (bgPollWasBusy && !busy && awaitingResponse) {
+      try {
+        const msgRes = await fetch(`/api/sessions/${currentSessionId}/messages`);
+        const { messages } = await msgRes.json();
+        const lastBot = [...messages].reverse().find(m => m.role === 'bot');
+        if (lastBot) {
+          hideTyping(); stopElapsedTimer();
+          document.getElementById('live-preview-row')?.remove();
+          clearInterval(progressTimer); clearInterval(heartbeatTimer);
+          addMsg('bot', lastBot.text, lastBot.time);
+          awaitingResponse = false; sendBtn.disabled = false; setStatus('ready'); msgInput.focus();
+          notify('Claude responded', (lastBot.text || '').substring(0, 100));
+          loadSessions();
+        }
+      } catch {}
+    }
+    bgPollWasBusy = busy;
+  } catch {}
 }, 5000);
 setInterval(() => { if (systemSessionsVisible) loadSystemSessions(); }, 30000);
 </script>

@@ -168,18 +168,19 @@ async function handleMessage(req, res) {
 
   console.log(`\n[${new Date().toLocaleTimeString()}] [${session.name}] ${message}`);
 
+  // Fire-and-forget: start Claude in background, return immediately
   busySessions.add(sessionId);
-  try {
-    const response = await runner.run(message);
+  runner.run(message).then((response) => {
     sessions.addMessage(sessionId, 'bot', response);
     console.log(`[${new Date().toLocaleTimeString()}] [${session.name}] ${response.substring(0, 100)}...`);
-    jsonResponse(res, 200, { response, sessionId });
-  } catch (err) {
+  }).catch((err) => {
     sessions.addMessage(sessionId, 'bot', `Error: ${err.message}`);
-    jsonResponse(res, 500, { error: err.message });
-  } finally {
+  }).finally(() => {
     busySessions.delete(sessionId);
-  }
+  });
+
+  // Return immediately — client polls GET /api/sessions/:id for result
+  return jsonResponse(res, 202, { accepted: true, sessionId });
 }
 
 const server = http.createServer(async (req, res) => {
