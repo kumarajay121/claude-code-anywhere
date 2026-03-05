@@ -7,9 +7,11 @@
   "scripts": {
     "start": "node src/web-bridge.js",
     "start:tunnel": "node src/start-with-tunnel.js --tunnel claude-bridge",
-    "start:tunnel:auto": "node src/start-with-tunnel.js --tunnel claude-bridge --auto-reconnect"
+    "start:tunnel:auto": "node src/start-with-tunnel.js --tunnel claude-bridge --auto-reconnect",
+    "cloudflare": "node src/start-cloudflare.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "web-push": "^3.6.7"
   }
 }

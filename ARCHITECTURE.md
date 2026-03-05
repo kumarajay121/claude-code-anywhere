@@ -17,10 +17,12 @@
 6. [Data Flow Diagrams](#data-flow-diagrams)
 7. [Session Lifecycle](#session-lifecycle)
 8. [Message Handling Modes](#message-handling-modes)
-9. [API Reference](#api-reference)
-10. [Storage & Persistence](#storage--persistence)
-11. [Security Model](#security-model)
-12. [Deployment Modes](#deployment-modes)
+9. [Teams Integration](#teams-integration)
+10. [Notification System](#notification-system)
+11. [API Reference](#api-reference)
+12. [Storage & Persistence](#storage--persistence)
+13. [Security Model](#security-model)
+14. [Deployment Modes](#deployment-modes)
 
 ---
 
@@ -30,10 +32,11 @@ Claude Code Web Bridge is a lightweight Node.js HTTP server that acts as a **bri
 
 **Key design principles:**
 - Zero external UI frameworks (no React, no build step)
-- Minimal dependencies (only `dotenv` for optional config)
+- Minimal dependencies (`dotenv` for config, `web-push` for notifications)
 - One process per message (Claude CLI is spawned per prompt, not long-running)
 - File-based persistence (sessions survive server restarts)
 - Pure JavaScript QR code generation (no external libraries)
+- Microsoft Teams integration via Outgoing Webhooks (no Azure Bot registration needed)
 
 ---
 
@@ -160,13 +163,17 @@ claude-code-web-bridge/
 │   ├── system-sessions.js       # Discovers Claude processes running in terminals
 │   ├── start-with-tunnel.js     # Launcher: bridge + devtunnel + QR code
 │   ├── qr-terminal.js           # Pure JS QR code generator (zero dependencies)
+│   ├── teams-webhook.js         # Teams Outgoing Webhook handler
 │   │
 │   └── public/
-│       └── index.html           # Complete chat UI (HTML + CSS + JS, single file)
+│       ├── index.html           # Complete chat UI (HTML + CSS + JS, single file)
+│       └── sw.js                # Service worker for Web Push notifications
 │
 └── ~/.claude-web-bridge/        # Runtime data directory (auto-created)
     ├── sessions.json            # All sessions + message history
-    └── public-url.txt           # Public devtunnel URL (written by tunnel script)
+    ├── public-url.txt           # Public devtunnel URL (written by tunnel script)
+    ├── push-subs.json           # Web Push notification subscriptions
+    └── teams-user-map.json      # Teams user → session ID mapping
 ```
 
 ---
@@ -205,7 +212,10 @@ Incoming Request
       ├── POST /api/sessions/:id/archive → move to archive
       ├── DELETE /api/sessions/:id       → permanently delete
       ├── GET /api/system-sessions       → list terminal CLI sessions
-      └── POST /api/system-sessions/import → import terminal session
+      ├── POST /api/system-sessions/import → import terminal session
+      ├── POST /api/teams-webhook    → Teams Outgoing Webhook endpoint
+      ├── GET /api/push/vapid-key    → VAPID public key for Web Push
+      └── POST /api/push/subscribe   → Register push notification subscription
 ```
 
 ---
@@ -282,7 +292,7 @@ ClaudeRunner.run(prompt)
           ┌─────────┼──────────┐
           │         │          │
      close()   auto-timeout  archive()
-          │    (72h inactivity) │
+          │    (4h inactivity) │
           ▼         │          ▼
      ┌────────┐     │    ┌──────────┐
      │ closed │     │    │ archived │
@@ -316,7 +326,7 @@ ClaudeRunner.run(prompt)
 }
 ```
 
-**Auto-timeout:** A background interval runs every 5 minutes, checking for sessions inactive beyond the timeout threshold (default: 72 hours). Timed-out sessions can be resumed.
+**Auto-timeout:** A background interval runs every 5 minutes, checking for sessions inactive beyond the timeout threshold (default: 4 hours). Timed-out sessions can be resumed.
 
 **Message cap:** Each session retains the last 200 messages. Older messages are trimmed from the front.
 
@@ -626,7 +636,7 @@ UI                     API                  system-sessions.js      SessionManag
 │     │   └───────────┤ timed-out │              │  active  │          │
 │     │               └───────────┘              └──────────┘          │
 │     │                     ▲                                          │
-│     │  72h inactivity     │                                          │
+│     │  4h inactivity     │                                          │
 │     └─────────────────────┘                                          │
 │                                                                      │
 │  delete() → permanently removes session + message history            │
@@ -670,6 +680,82 @@ When a user sends a message while Claude is already processing:
 
 ---
 
+## Teams Integration
+
+### teams-webhook.js — Outgoing Webhook Handler
+
+**Role:** Receives @mention messages from a Teams channel via Outgoing Webhook, runs Claude, and returns the response. For long-running tasks, posts the response back via an Incoming Webhook (Workflow).
+
+**Dual webhook pattern:**
+
+```
+User @mentions ClaudeCode in channel
+         │
+         ▼
+    Outgoing Webhook (Teams → Bridge)
+    POST /api/teams-webhook
+         │
+         ├── Verify HMAC-SHA256 signature
+         ├── Strip HTML tags and @mention from message
+         ├── Resolve/create Claude session for user
+         │
+         ├── Quick task (< 8s): return response directly as JSON
+         │   └── { type: "message", text: "Claude's response" }
+         │
+         └── Long task (> 8s): return "Working on it..."
+                  │
+                  v
+             Claude runs in background
+                  │
+                  v
+             When done → POST Adaptive Card to Incoming Webhook URL
+             (Bridge → Teams channel via Workflow)
+```
+
+**Key components:**
+
+| Component | Description |
+|-----------|-------------|
+| `verifyHmac()` | Validates HMAC-SHA256 signature from Teams against the shared secret |
+| `TeamsUserMap` | Persists Teams user → Claude session mapping to `~/.claude-web-bridge/teams-user-map.json` |
+| `postToIncomingWebhook()` | Sends Adaptive Card to Teams channel via Workflow webhook URL |
+
+**HTML stripping:** Teams sends messages as HTML (`<p>&nbsp;text</p>`). The handler strips all HTML tags and decodes entities (`&nbsp;`, `&amp;`, etc.) before passing to Claude.
+
+**Session mapping:** Each Teams user gets a persistent Claude session. Context is preserved across messages — a user can have a multi-turn conversation by @mentioning the webhook repeatedly.
+
+---
+
+## Notification System
+
+The bridge uses a multi-layer notification system to alert users when Claude responds:
+
+```
+Claude responds
+      │
+      ├── Windows Desktop Toast (via PowerShell + WinRT)
+      │   └── Native Windows notification in bottom-right corner
+      │
+      ├── Web Push (via service worker + VAPID)
+      │   └── Browser push notification (works in background)
+      │
+      ├── In-page Toast (always)
+      │   └── Purple slide-in notification + sound chime
+      │
+      └── Teams Channel Message (if via Teams webhook)
+          └── Native Teams notification on all devices
+```
+
+**Windows toast notifications:** Uses PowerShell to invoke `Windows.UI.Notifications.ToastNotificationManager` WinRT API. Shows "Claude has responded" with a preview of the response.
+
+**Web Push notifications:** Uses the `web-push` npm package with VAPID keys. A service worker (`sw.js`) listens for push events and shows native browser notifications. Subscriptions are persisted to `~/.claude-web-bridge/push-subs.json`. Works even when the browser tab is closed.
+
+**In-page toast:** A CSS-animated notification that slides in from the top-right corner with a sound chime (Web Audio API). Works inside iframes including Teams tabs.
+
+**Teams channel notifications:** When Claude is invoked via Outgoing Webhook, the response appears as a channel message, which triggers Teams' built-in notification system on all devices (desktop, mobile, web).
+
+---
+
 ## API Reference
 
 ### Sessions
@@ -702,6 +788,19 @@ When a user sends a message while Claude is already processing:
 | `GET` | `/api/system-sessions` | — | `{ sessions: [...] }` | List terminal Claude sessions |
 | `POST` | `/api/system-sessions/import` | `{ sessionId, name, killPid }` | `{ session }` | Import terminal session |
 
+### Teams
+
+| Method | Endpoint | Body | Response | Description |
+|--------|----------|------|----------|-------------|
+| `POST` | `/api/teams-webhook` | Teams activity JSON | `{ type, text }` | Outgoing Webhook endpoint (called by Teams) |
+
+### Push Notifications
+
+| Method | Endpoint | Body | Response | Description |
+|--------|----------|------|----------|-------------|
+| `GET` | `/api/push/vapid-key` | — | `{ key }` | VAPID public key for push subscription |
+| `POST` | `/api/push/subscribe` | Push subscription JSON | `{ ok: true }` | Register browser for push notifications |
+
 ### Utility
 
 | Method | Endpoint | Response | Description |
@@ -717,8 +816,10 @@ All runtime data lives in `~/.claude-web-bridge/`:
 
 ```
 ~/.claude-web-bridge/
-├── sessions.json       # All sessions + message history (written on every change)
-└── public-url.txt      # Current devtunnel public URL (written by start-with-tunnel.js)
+├── sessions.json         # All sessions + message history (written on every change)
+├── public-url.txt        # Current devtunnel public URL (written by start-with-tunnel.js)
+├── push-subs.json        # Web Push notification subscriptions (written by web-bridge.js)
+└── teams-user-map.json   # Teams user name → Claude session ID mapping
 ```
 
 **Claude's own data** (read-only by the bridge):
@@ -742,9 +843,11 @@ The bridge reads these `.jsonl` files to discover existing terminal sessions but
 | **Network access** | Bridge listens on `0.0.0.0:3847` (all interfaces). Without devtunnel, only accessible on LAN. |
 | **Tunnel access** | devtunnel is created with `--allow-anonymous` — anyone with the URL can access |
 | **No authentication** | The bridge has no login/password. Security relies on the devtunnel URL being secret. |
+| **Teams webhook auth** | Outgoing Webhook requests are verified via HMAC-SHA256 signature using the shared secret. Invalid signatures are rejected with 401. |
 | **Session isolation** | Each chat has its own working directory and Claude session. One chat cannot access another's Claude conversation. |
 | **Session locking** | The bridge detects if a terminal Claude is using the same session ID and refuses messages to prevent conflicts. |
 | **CORS** | `Access-Control-Allow-Origin: *` — any origin can make API calls |
+| **iframe embedding** | CSP `frame-ancestors` header allows Teams domains. `X-Tunnel-Skip-AntiPhishing-Page` header set for devtunnel. |
 
 **Recommendation:** For sensitive environments, use `--allow-org` instead of `--allow-anonymous` to restrict devtunnel access to your Azure AD tenant.
 
@@ -778,3 +881,25 @@ Same as mode 2, but automatically restarts the tunnel if it disconnects. Ideal f
 ```
 Tunnel dies → wait 5s → reconnect → repeat (unlimited retries)
 ```
+
+### 4. Teams Channel Integration
+
+Teams Outgoing Webhooks require a tunnel without interstitial pages. Devtunnel's anti-phishing interstitial blocks server-to-server POST requests from Teams. Cloudflare tunnel is used because it forwards requests directly without any interstitial.
+
+When `TEAMS_WEBHOOK_SECRET` is set in `.env`, the bridge automatically starts a Cloudflare tunnel alongside devtunnel. The Cloudflare URL is used as the webhook callback, while devtunnel is used for browser access.
+
+```
+Teams Channel ──── @ClaudeCode message ──── Outgoing Webhook ──── Cloudflare tunnel ──── web-bridge.js ──── Claude CLI
+                                                                        │
+                                                                        ▼
+                                                                  Incoming Webhook
+                                                                  (Workflow) for
+                                                                  long responses
+                                                                        │
+                                                                        ▼
+                                                                  Teams Channel
+```
+
+- Uses Teams Outgoing + Incoming Webhooks — no Azure Bot registration needed
+- Native Teams notifications on all devices
+- Each user gets a persistent Claude session

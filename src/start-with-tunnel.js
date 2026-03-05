@@ -22,6 +22,9 @@ import os from 'os';
 import fs from 'fs';
 import { qrToTerminal } from './qr-terminal.js';
 
+// Load .env if present
+try { await import('dotenv/config'); } catch {}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function findDevtunnel() {
@@ -70,12 +73,10 @@ let tunnelStopping = false;
 function ensureTunnelExists() {
   const devtunnelBin = findDevtunnel();
   const port = process.env.BRIDGE_PORT || '3847';
-  const accessFlag = allowOrg ? '--allow-anonymous' : '';
-
-  // Try to create the tunnel (ignore error if it already exists)
-  // Default: private (only your Microsoft account). Use --allow-org for AAD tenant.
+  // anonymous access required for Teams tab iframe embedding (private blocks iframes)
+  // Security: the tunnel URL is a random string that's hard to guess
   try {
-    execSync(`"${devtunnelBin}" create ${tunnelName} ${accessFlag}`.trim(), { stdio: 'pipe', shell: true });
+    execSync(`"${devtunnelBin}" create ${tunnelName} --allow-anonymous`, { stdio: 'pipe', shell: true });
     console.log(`Created tunnel "${tunnelName}"`);
   } catch {
     // Tunnel likely already exists — that's fine

@@ -1,4 +1,5 @@
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +7,7 @@ import { ClaudeRunner } from './claude-runner.js';
 import { SessionManager } from './session-manager.js';
 import { listRecentSystemSessions, isSessionRunningExternally } from './system-sessions.js';
 import { generateQR } from './qr-terminal.js';
+import { setupTeamsWebhook } from './teams-webhook.js';
 
 // Load .env if present
 try { await import('dotenv/config'); } catch {}
@@ -15,9 +17,127 @@ const PORT = parseInt(process.env.BRIDGE_PORT || '3847', 10);
 const WORKING_DIR = process.env.CLAUDE_WORKING_DIR || process.cwd();
 const CLAUDE_PATH = process.env.CLAUDE_PATH || undefined;
 
+import os from 'os';
+import { execFile } from 'child_process';
+import webpush from 'web-push';
+
 const sessions = new SessionManager({ timeoutHours: 4 });
 const runners = new Map(); // sessionId -> ClaudeRunner
 const busySessions = new Set();
+
+// Windows toast notification — shows native desktop notification when Claude responds
+function sendDesktopNotification(title, body) {
+  if (process.platform !== 'win32') return;
+  const safeTitle = title.replace(/'/g, "''").replace(/`/g, '``');
+  const safeBody = (body || '').substring(0, 200).replace(/'/g, "''").replace(/`/g, '``').replace(/\n/g, ' ');
+  const ps = `
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$xml = @"
+<toast duration="short">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>${safeTitle}</text>
+      <text>${safeBody}</text>
+    </binding>
+  </visual>
+  <audio src="ms-winsoundevent:Notification.Default"/>
+</toast>
+"@
+$doc = New-Object Windows.Data.Xml.Dom.XmlDocument
+$doc.LoadXml($xml)
+$toast = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Claude Code Bridge')
+$toast.Show([Windows.UI.Notifications.ToastNotification]::new($doc))
+`;
+  execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: 5000 }, (err) => {
+    if (err) console.error('[notify] Toast error:', err.message);
+  });
+}
+
+// Web Push notifications — works on any device with a browser, no external app needed
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+const pushSubscriptions = new Set();
+const pushSubFile = path.join(os.homedir(), '.claude-web-bridge', 'push-subs.json');
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails('mailto:claude-bridge@localhost', VAPID_PUBLIC, VAPID_PRIVATE);
+  // Load saved subscriptions
+  try {
+    const saved = JSON.parse(fs.readFileSync(pushSubFile, 'utf8'));
+    saved.forEach(s => pushSubscriptions.add(JSON.stringify(s)));
+    console.log(`[push] Loaded ${saved.length} push subscription(s)`);
+  } catch {}
+}
+
+function savePushSubscriptions() {
+  const subs = [...pushSubscriptions].map(s => JSON.parse(s));
+  try {
+    fs.mkdirSync(path.dirname(pushSubFile), { recursive: true });
+    fs.writeFileSync(pushSubFile, JSON.stringify(subs), 'utf8');
+  } catch {}
+}
+
+function sendWebPush(title, body) {
+  if (!VAPID_PUBLIC || pushSubscriptions.size === 0) return;
+  const payload = JSON.stringify({ title, body: body || '' });
+  for (const subStr of pushSubscriptions) {
+    const sub = JSON.parse(subStr);
+    webpush.sendNotification(sub, payload).catch((err) => {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        // Subscription expired — remove it
+        pushSubscriptions.delete(subStr);
+        savePushSubscriptions();
+      }
+      console.error('[push] Error:', err.statusCode || err.message);
+    });
+  }
+}
+
+// Email notification via Outlook COM — triggers native Outlook notification on phone
+// Set NOTIFY_EMAIL in .env (auto-discovered from Outlook if not set)
+let notifyEmail = process.env.NOTIFY_EMAIL || '';
+let emailCooldown = false;
+
+function sendEmailNotification(title, body) {
+  if (!notifyEmail || emailCooldown) return;
+  // Throttle: max one email per 30 seconds to avoid spamming
+  emailCooldown = true;
+  setTimeout(() => { emailCooldown = false; }, 30000);
+
+  const safeTitle = title.replace(/'/g, "''");
+  const safeBody = (body || '').substring(0, 300).replace(/'/g, "''").replace(/\n/g, "`r`n");
+  const ps = `
+$ol = New-Object -ComObject Outlook.Application
+$mail = $ol.CreateItem(0)
+$mail.To = '${notifyEmail}'
+$mail.Subject = '${safeTitle}'
+$mail.Body = '${safeBody}'
+$mail.Send()
+`;
+  execFile('powershell', ['-NoProfile', '-Command', ps], { timeout: 10000 }, (err) => {
+    if (err) console.error('[email-notify] Error:', err.message);
+    else console.log(`[email-notify] Sent to ${notifyEmail}`);
+  });
+}
+
+// Auto-discover email from Outlook if not set
+if (!notifyEmail) {
+  const discoverPs = `
+try {
+  $ol = New-Object -ComObject Outlook.Application
+  $ns = $ol.GetNamespace('MAPI')
+  $acct = $ns.Accounts | Select-Object -First 1
+  if ($acct) { Write-Output $acct.SmtpAddress }
+} catch {}
+`;
+  execFile('powershell', ['-NoProfile', '-Command', discoverPs], { timeout: 10000 }, (err, stdout) => {
+    if (!err && stdout.trim()) {
+      notifyEmail = stdout.trim();
+      console.log(`[email-notify] Auto-discovered email: ${notifyEmail}`);
+    }
+  });
+}
 
 function getBridgePids() {
   const pids = new Set();
@@ -41,10 +161,17 @@ function getRunner(sessionId) {
   return runners.get(sessionId);
 }
 
+// Initialize Teams Outgoing Webhook handler
+const teamsWebhookHandler = setupTeamsWebhook(sessions, getRunner, WORKING_DIR);
+
 function serveStatic(res, filePath, contentType) {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
-    res.writeHead(200, { 'Content-Type': contentType });
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Security-Policy': "frame-ancestors https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.office.com https://*.microsoft.com https://localhost *",
+      'X-Tunnel-Skip-AntiPhishing-Page': 'true',
+    });
     res.end(content);
   } catch {
     res.writeHead(404);
@@ -173,8 +300,14 @@ async function handleMessage(req, res) {
   runner.run(message).then((response) => {
     sessions.addMessage(sessionId, 'bot', response);
     console.log(`[${new Date().toLocaleTimeString()}] [${session.name}] ${response.substring(0, 100)}...`);
+    sendDesktopNotification('Claude has responded', response.substring(0, 150));
+    sendWebPush('Claude has responded', response.substring(0, 200));
+    sendEmailNotification('Claude has responded — please check', response.substring(0, 300));
   }).catch((err) => {
     sessions.addMessage(sessionId, 'bot', `Error: ${err.message}`);
+    sendDesktopNotification('Claude error', err.message);
+    sendWebPush('Claude error', err.message);
+    sendEmailNotification('Claude error', err.message);
   }).finally(() => {
     busySessions.delete(sessionId);
   });
@@ -198,6 +331,9 @@ const server = http.createServer(async (req, res) => {
   // Static files
   if (req.method === 'GET' && url.pathname === '/') {
     return serveStatic(res, path.join(__dirname, 'public', 'index.html'), 'text/html');
+  }
+  if (req.method === 'GET' && url.pathname === '/sw.js') {
+    return serveStatic(res, path.join(__dirname, 'public', 'sw.js'), 'application/javascript');
   }
 
   // --- QR code API ---
@@ -374,6 +510,57 @@ const server = http.createServer(async (req, res) => {
     return handleMessage(req, res);
   }
 
+  // Web Push — get VAPID public key
+  if (req.method === 'GET' && url.pathname === '/api/push/vapid-key') {
+    return jsonResponse(res, 200, { key: VAPID_PUBLIC });
+  }
+
+  // Web Push — subscribe
+  if (req.method === 'POST' && url.pathname === '/api/push/subscribe') {
+    return readBody(req, (body) => {
+      try {
+        const sub = JSON.parse(body);
+        pushSubscriptions.add(JSON.stringify(sub));
+        savePushSubscriptions();
+        console.log(`[push] New subscription registered (total: ${pushSubscriptions.size})`);
+        return jsonResponse(res, 200, { ok: true });
+      } catch (e) {
+        return jsonResponse(res, 400, { error: e.message });
+      }
+    });
+  }
+
+  // Teams Outgoing Webhook — receives @mentions from Teams channel
+  if (req.method === 'POST' && url.pathname === '/api/teams-webhook') {
+    if (teamsWebhookHandler) {
+      return teamsWebhookHandler(req, res);
+    }
+    return jsonResponse(res, 404, { error: 'Teams webhook not configured. Set TEAMS_WEBHOOK_SECRET in .env' });
+  }
+
+  // Teams notification — forward to Workflow webhook for personal notification
+  if (req.method === 'POST' && url.pathname === '/api/teams-notify') {
+    const TEAMS_NOTIFY_URL = process.env.TEAMS_NOTIFY_WEBHOOK_URL;
+    if (!TEAMS_NOTIFY_URL) return jsonResponse(res, 200, { skipped: true });
+    return readBody(req, (body) => {
+      try {
+        const { title, body: text } = JSON.parse(body);
+        const payload = JSON.stringify({ type: 'message', text: `**${title}**\n\n${text || ''}` });
+        const u = new URL(TEAMS_NOTIFY_URL);
+        const mod = u.protocol === 'https:' ? require('https') : require('http');
+        const r = mod.request(u, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (resp) => {
+          resp.resume();
+        });
+        r.on('error', (e) => console.error('[teams-notify] Error:', e.message));
+        r.write(payload);
+        r.end();
+        return jsonResponse(res, 200, { sent: true });
+      } catch (e) {
+        return jsonResponse(res, 400, { error: e.message });
+      }
+    });
+  }
+
   // Global status
   if (req.method === 'GET' && url.pathname === '/api/status') {
     const defaultSession = sessions.getOrCreateDefault();
@@ -409,3 +596,20 @@ server.listen(PORT, '0.0.0.0', () => {
   Press Ctrl+C to stop.
 `);
 });
+
+// HTTPS server for Teams tab (Teams requires https for iframe embedding)
+const HTTPS_PORT = parseInt(process.env.BRIDGE_HTTPS_PORT || '3848', 10);
+const certDir = path.join(__dirname, '..', 'certs');
+const certPath = path.join(certDir, 'cert.pem');
+const keyPath = path.join(certDir, 'key.pem');
+
+if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+  const httpsServer = https.createServer({
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath),
+  }, server._events.request); // reuse the same request handler
+
+  httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+    console.log(`  \x1b[1mHTTPS:\x1b[0m  https://localhost:${HTTPS_PORT}  \x1b[2m(for Teams tab)\x1b[0m`);
+  });
+}

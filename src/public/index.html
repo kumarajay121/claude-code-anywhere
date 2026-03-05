@@ -233,6 +233,10 @@
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(80px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
 
   /* ── Markdown ── */
   .msg.bot h3 { font-size: 15px; font-weight: 700; margin: 12px 0 6px; color: var(--text); }
@@ -460,6 +464,7 @@
     .qr-section { display: none !important; }
   }
 </style>
+<script src="https://res.cdn.office.net/teams-js/2.31.1/js/MicrosoftTeams.min.js"></script>
 </head>
 <body>
 
@@ -562,6 +567,18 @@
 </div>
 
 <script>
+// ── Teams SDK initialization ──
+let isInTeams = false;
+(async () => {
+  try {
+    if (window.microsoftTeams) {
+      await microsoftTeams.app.initialize();
+      const ctx = await microsoftTeams.app.getContext();
+      if (ctx) { isInTeams = true; console.log('[teams] Running inside Teams'); }
+    }
+  } catch (e) { console.log('[teams] Not in Teams context:', e.message); }
+})();
+
 const chat = document.getElementById('chat');
 const welcome = document.getElementById('welcome');
 const msgInput = document.getElementById('msg');
@@ -1235,10 +1252,117 @@ async function cancelRequest() {
 
 // ── Notifications ──
 function notify(title, body) {
+  // Always show in-page toast notification
+  showToast(title, body);
+
+  // Teams: notify via readStatus to show badge on the tab
+  if (isInTeams) {
+    try {
+      // Signal unread status — shows a notification dot on the Claude Code tab
+      microsoftTeams.pages.currentApp.navigateTo({ pageId: 'claude-code-tab' });
+    } catch {}
+    // Also send via the bridge to trigger a Workflow/Power Automate notification
+    sendTeamsNotification(title, body);
+    return;
+  }
+
+  // Browser notification when tab not visible
   if (document.visibilityState === 'visible') return;
-  if (Notification.permission === 'granted') new Notification(title, { body });
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    new Notification(title, { body });
+  }
 }
-document.addEventListener('click', () => { if (Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
+// Register service worker & subscribe to push notifications
+async function setupPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    console.log('[push] Service worker registered');
+
+    // Get VAPID key from server
+    const res = await fetch('/api/push/vapid-key');
+    const { key } = await res.json();
+    if (!key) return;
+
+    // Check if already subscribed
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      // Request permission
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+
+      // Subscribe
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      console.log('[push] Subscribed to push notifications');
+    }
+
+    // Send subscription to server
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub.toJSON()),
+    });
+  } catch (e) {
+    console.log('[push] Setup failed:', e.message);
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+// Auto-setup push notifications on first interaction
+document.addEventListener('click', () => { setupPushNotifications(); }, { once: true });
+
+// Send notification via bridge → Teams Workflow (posts a personal chat/activity notification)
+async function sendTeamsNotification(title, body) {
+  try {
+    await fetch('/api/teams-notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body: body ? body.substring(0, 200) : '' }),
+    });
+  } catch {}
+}
+
+// In-page toast notification (works everywhere including Teams iframe)
+function showToast(title, body) {
+  const existing = document.getElementById('toast-notification');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast-notification';
+  toast.innerHTML = `<strong>${title}</strong><br><span style="opacity:0.8;font-size:13px">${body ? body.substring(0, 120) : ''}</span>`;
+  Object.assign(toast.style, {
+    position: 'fixed', top: '20px', right: '20px', zIndex: '10000',
+    background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', color: '#fff',
+    padding: '14px 20px', borderRadius: '12px', maxWidth: '360px',
+    boxShadow: '0 8px 32px rgba(139,92,246,0.4)', cursor: 'pointer',
+    animation: 'toastIn 0.4s ease', fontFamily: 'Inter, sans-serif', fontSize: '14px',
+  });
+  toast.onclick = () => toast.remove();
+  document.body.appendChild(toast);
+
+  // Play a subtle notification sound
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.frequency.value = 880; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.15, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
+    osc.start(); osc.stop(ac.currentTime + 0.4);
+  } catch {}
+
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 6000);
+}
 
 let elapsedTimer = null, elapsedStart = 0;
 function startElapsedTimer() {
