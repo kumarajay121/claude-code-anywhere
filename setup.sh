@@ -10,6 +10,9 @@
 
 set -e
 
+# On Windows, keep terminal open if something crashes so the user can see the error
+trap 'echo ""; echo "Something went wrong. See error above."; read -rp "Press Enter to close..."' ERR
+
 TUNNEL=true
 SKIP_START=false
 
@@ -307,14 +310,26 @@ echo -e "\033[32m================================================\033[0m"
 echo ""
 
 cd "$SCRIPT_DIR"
+# Disable set -e for the server command — if it crashes, we want to show the error
+set +e
+trap - ERR
+
 if [ "$TUNNEL" = true ]; then
   echo "   Starting with devtunnel (remote access)..."
   echo "   A QR code will appear — scan it to open on your phone."
   echo ""
   npm run start:tunnel:auto
+  EXIT_CODE=$?
 else
   echo "   Starting in local mode..."
   echo "   Open http://localhost:3847 in your browser."
   echo ""
   npm start
+  EXIT_CODE=$?
+fi
+
+if [ "$EXIT_CODE" -ne 0 ]; then
+  echo ""
+  echo -e "\033[31m   Bridge exited with code $EXIT_CODE. See error above.\033[0m"
+  read -rp "   Press Enter to close..."
 fi

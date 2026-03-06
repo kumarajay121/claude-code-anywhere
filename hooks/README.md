@@ -115,6 +115,6 @@ Then manually remove the `CLAUDE_TEAMS_WEBHOOK_URL` line from your shell profile
 
 | Event | Trigger | Notification Title |
 |-------|---------|-------------------|
-| `Stop` | Claude finishes and waits for input | "Claude is waiting for your response" |
+| `Stop` | Claude finishes and waits for input | "Here is response from claude, It's your turn" |
 | `Notification` (elicitation_dialog) | Claude asks you to choose | "Claude needs your decision" |
 | `Notification` (permission_prompt) | Claude needs tool permission | "Claude needs permission" |

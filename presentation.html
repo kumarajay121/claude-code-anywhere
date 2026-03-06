@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Anywhere — FHL Presentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-dark: #0f0f1a;
+    --bg-card: #1a1a2e;
+    --accent: #7c5cfc;
+    --accent-light: #a78bfa;
+    --accent-glow: rgba(124, 92, 252, 0.3);
+    --green: #34d399;
+    --orange: #fb923c;
+    --pink: #f472b6;
+    --blue: #60a5fa;
+    --cyan: #22d3ee;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-bright: #f8fafc;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .slide {
+    display: none;
+    width: 100vw;
+    height: 100vh;
+    padding: 50px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide.active { display: flex; flex-direction: column; }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    right: -200px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .slide > * { position: relative; z-index: 1; }
+
+  /* Navigation */
+  .nav {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    display: flex;
+    gap: 12px;
+    z-index: 100;
+    align-items: center;
+  }
+
+  .nav button {
+    background: var(--bg-card);
+    border: 1px solid rgba(124, 92, 252, 0.3);
+    color: var(--text);
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav button:hover { background: var(--accent); border-color: var(--accent); }
+
+  .slide-counter {
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--pink));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* Typography */
+  h1 {
+    font-size: 3.2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--text-bright), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  h2 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text-bright);
+  }
+
+  h3 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--accent-light);
+  }
+
+  .subtitle {
+    font-size: 1.3rem;
+    color: var(--text-dim);
+    font-weight: 300;
+    margin-bottom: 36px;
+    line-height: 1.6;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 20px;
+  }
+
+  .tag.purple { background: rgba(124, 92, 252, 0.2); color: var(--accent-light); border: 1px solid rgba(124, 92, 252, 0.3); }
+  .tag.green { background: rgba(52, 211, 153, 0.15); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.3); }
+  .tag.orange { background: rgba(251, 146, 60, 0.15); color: var(--orange); border: 1px solid rgba(251, 146, 60, 0.3); }
+  .tag.pink { background: rgba(244, 114, 182, 0.15); color: var(--pink); border: 1px solid rgba(244, 114, 182, 0.3); }
+  .tag.blue { background: rgba(96, 165, 250, 0.15); color: var(--blue); border: 1px solid rgba(96, 165, 250, 0.3); }
+  .tag.cyan { background: rgba(34, 211, 238, 0.12); color: var(--cyan); border: 1px solid rgba(34, 211, 238, 0.25); }
+
+  /* Cards grid */
+  .cards {
+    display: grid;
+    gap: 20px;
+    flex: 1;
+    align-content: start;
+  }
+
+  .cards.two-col { grid-template-columns: 1fr 1fr; }
+  .cards.three-col { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.3s;
+  }
+
+  .card:hover {
+    border-color: rgba(124, 92, 252, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+
+  .card .icon {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .card p {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* Code block */
+  .code-block {
+    background: #12121f;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text);
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .code-block .comment { color: #6b7280; }
+  .code-block .cmd { color: var(--green); }
+
+  /* Animated elements */
+  .animate-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.5s ease;
+  }
+
+  .slide.active .animate-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .slide.active .animate-in:nth-child(2) { transition-delay: 0.1s; }
+  .slide.active .animate-in:nth-child(3) { transition-delay: 0.2s; }
+  .slide.active .animate-in:nth-child(4) { transition-delay: 0.3s; }
+  .slide.active .animate-in:nth-child(5) { transition-delay: 0.4s; }
+  .slide.active .animate-in:nth-child(6) { transition-delay: 0.5s; }
+  .slide.active .animate-in:nth-child(7) { transition-delay: 0.6s; }
+
+  /* ===== SLIDE 1: Continuous Animations ===== */
+
+  /* Floating particles */
+  .particles {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0;
+    animation: particleFloat linear infinite;
+  }
+
+  @keyframes particleFloat {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100px) scale(1); opacity: 0; }
+  }
+
+  /* Orbiting icons around the title area */
+  .orbit-container {
+    position: absolute;
+    top: 50%;
+    right: 10%;
+    width: 320px;
+    height: 320px;
+    transform: translate(0, -50%);
+    z-index: 0;
+  }
+
+  .orbit-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    border: 1px solid rgba(124,92,252,0.12);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .orbit-ring-1 { width: 200px; height: 200px; }
+  .orbit-ring-2 { width: 300px; height: 300px; }
+
+  .orbit-icon {
+    position: absolute;
+    font-size: 1.6rem;
+    animation: orbitSpin linear infinite;
+    transform-origin: 0 0;
+  }
+
+  @keyframes orbitSpin {
+    from { transform: rotate(0deg) translateX(var(--orbit-r)) rotate(0deg); }
+    to { transform: rotate(360deg) translateX(var(--orbit-r)) rotate(-360deg); }
+  }
+
+  .orbit-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,92,252,0.25), transparent 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    animation: centerPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes centerPulse {
+    0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
+    50% { box-shadow: 0 0 50px var(--accent-glow), 0 0 80px rgba(124,92,252,0.15); }
+  }
+
+  /* Stat glow - subtle, no layout shift */
+  .stat .number {
+    text-shadow: 0 0 12px rgba(167,139,250,0.3);
+  }
+
+  /* Typing cursor blink on code block */
+  .typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: var(--green);
+    vertical-align: text-bottom;
+    animation: cursorBlink 1s step-end infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Subtle glow on code block */
+  .code-glow {
+    box-shadow: 0 0 20px rgba(124,92,252,0.15);
+  }
+
+  /* Stats row */
+  .stats {
+    display: flex;
+    gap: 40px;
+    margin: 30px 0;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat .number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--accent-light);
+    line-height: 1;
+  }
+
+  .stat .label {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* Split layout */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 50px;
+    flex: 1;
+    align-items: start;
+  }
+
+  /* Center content */
+  .center-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex: 1;
+  }
+
+  /* Timeline */
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 10px 0;
+  }
+
+  .timeline-item {
+    display: flex;
+    gap: 20px;
+    padding: 14px 0;
+    position: relative;
+  }
+
+  .timeline-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 46px;
+    bottom: -2px;
+    width: 2px;
+    background: rgba(124, 92, 252, 0.2);
+  }
+
+  .timeline-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    background: rgba(124, 92, 252, 0.2);
+    color: var(--accent-light);
+    border: 1px solid rgba(124, 92, 252, 0.3);
+  }
+
+  .timeline-content h3 { margin-bottom: 4px; font-size: 1.05rem; }
+  .timeline-content p { color: var(--text-dim); font-size: 0.88rem; line-height: 1.5; }
+
+  /* Table */
+  .styled-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.95rem;
+  }
+
+  .styled-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: var(--accent-light);
+    font-weight: 600;
+    border-bottom: 2px solid rgba(124, 92, 252, 0.2);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .styled-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+
+  .styled-table tr:hover td { background: rgba(124, 92, 252, 0.05); }
+
+  kbd {
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+  }
+
+  /* Comparison */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin: 20px 0;
+  }
+
+  .compare-col {
+    padding: 24px;
+    border-radius: 16px;
+  }
+
+  .compare-col.before { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); }
+  .compare-col.after { background: rgba(52, 211, 153, 0.08); border: 1px solid rgba(52, 211, 153, 0.15); }
+  .compare-col h3 { margin-bottom: 16px; }
+  .compare-col.before h3 { color: #f87171; }
+  .compare-col.after h3 { color: var(--green); }
+
+  .compare-col ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .compare-col li {
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    padding-left: 24px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .compare-col.before li::before { content: '\2715'; position: absolute; left: 0; color: #f87171; }
+  .compare-col.after li::before { content: '\2713'; position: absolute; left: 0; color: var(--green); }
+
+  /* ===== SLIDE 2: Scenario Animation ===== */
+  .scenario-strip {
+    display: flex;
+    gap: 0;
+    margin: 24px 0 20px;
+    position: relative;
+  }
+
+  .scenario-step {
+    flex: 1;
+    padding: 20px 18px;
+    text-align: center;
+    position: relative;
+    opacity: 0;
+    transform: translateX(-30px);
+    transition: all 0.6s ease;
+  }
+
+  .slide.active .scenario-step {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .slide.active .scenario-step:nth-child(1) { transition-delay: 0.3s; }
+  .slide.active .scenario-step:nth-child(2) { transition-delay: 0.6s; }
+  .slide.active .scenario-step:nth-child(3) { transition-delay: 0.9s; }
+  .slide.active .scenario-step:nth-child(4) { transition-delay: 1.2s; }
+  .slide.active .scenario-step:nth-child(5) { transition-delay: 1.5s; }
+
+  .scenario-step .sc-icon {
+    font-size: 2.2rem;
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .scenario-step .sc-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+
+  .scenario-step .sc-desc {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
+  .scenario-arrow {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2rem;
+    color: var(--accent);
+    z-index: 2;
+  }
+
+  .scenario-step.bad { border-bottom: 3px solid rgba(239, 68, 68, 0.4); }
+  .scenario-step.turn { border-bottom: 3px solid rgba(251, 146, 60, 0.5); background: rgba(251,146,60,0.05); border-radius: 12px; }
+  .scenario-step.good { border-bottom: 3px solid rgba(52, 211, 153, 0.5); }
+
+  /* ===== SLIDE 4: Staggered card animations ===== */
+  .cards-animated .card {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .slide.active .cards-animated .card {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .slide.active .cards-animated .card:nth-child(1) { transition-delay: 0.15s; }
+  .slide.active .cards-animated .card:nth-child(2) { transition-delay: 0.25s; }
+  .slide.active .cards-animated .card:nth-child(3) { transition-delay: 0.35s; }
+  .slide.active .cards-animated .card:nth-child(4) { transition-delay: 0.45s; }
+  .slide.active .cards-animated .card:nth-child(5) { transition-delay: 0.55s; }
+  .slide.active .cards-animated .card:nth-child(6) { transition-delay: 0.65s; }
+  .slide.active .cards-animated .card:nth-child(7) { transition-delay: 0.75s; }
+  .slide.active .cards-animated .card:nth-child(8) { transition-delay: 0.85s; }
+  .slide.active .cards-animated .card:nth-child(9) { transition-delay: 0.95s; }
+
+  .cards-animated .card:hover {
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  }
+
+  .cards-animated .card:hover .icon {
+    transform: scale(1.2);
+    transition: transform 0.3s;
+  }
+
+  .cards-animated .card .icon {
+    transition: transform 0.3s;
+  }
+
+  /* Glow colors per card on hover */
+  .cards-animated .card:nth-child(1):hover { border-color: var(--blue); box-shadow: 0 0 25px rgba(96,165,250,0.15); }
+  .cards-animated .card:nth-child(2):hover { border-color: var(--accent); box-shadow: 0 0 25px var(--accent-glow); }
+  .cards-animated .card:nth-child(3):hover { border-color: var(--orange); box-shadow: 0 0 25px rgba(251,146,60,0.15); }
+  .cards-animated .card:nth-child(4):hover { border-color: var(--green); box-shadow: 0 0 25px rgba(52,211,153,0.15); }
+  .cards-animated .card:nth-child(5):hover { border-color: var(--pink); box-shadow: 0 0 25px rgba(244,114,182,0.15); }
+  .cards-animated .card:nth-child(6):hover { border-color: var(--cyan); box-shadow: 0 0 25px rgba(34,211,238,0.15); }
+  .cards-animated .card:nth-child(7):hover { border-color: var(--blue); box-shadow: 0 0 25px rgba(96,165,250,0.15); }
+  .cards-animated .card:nth-child(8):hover { border-color: var(--accent); box-shadow: 0 0 25px var(--accent-glow); }
+  .cards-animated .card:nth-child(9):hover { border-color: var(--orange); box-shadow: 0 0 25px rgba(251,146,60,0.15); }
+
+  /* ===== INTERACTIVE FLOWCHART ===== */
+  .flowchart {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 350px;
+  }
+
+  .fc-node {
+    position: absolute;
+    background: var(--bg-card);
+    border: 2px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.35s ease;
+    min-width: 140px;
+    z-index: 2;
+  }
+
+  .fc-node:hover, .fc-node.active {
+    transform: scale(1.06);
+    z-index: 5;
+  }
+
+  .fc-node .fc-icon { font-size: 1.5rem; margin-bottom: 6px; display: block; }
+  .fc-node .fc-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .fc-node .fc-title { font-size: 1rem; font-weight: 600; color: var(--text-bright); margin-top: 2px; }
+
+  .fc-node.purple-border { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+  .fc-node.green-border  { border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.2); }
+  .fc-node.pink-border   { border-color: var(--pink); box-shadow: 0 0 20px rgba(244,114,182,0.2); }
+  .fc-node.blue-border   { border-color: var(--blue); box-shadow: 0 0 20px rgba(96,165,250,0.2); }
+  .fc-node.orange-border { border-color: var(--orange); box-shadow: 0 0 20px rgba(251,146,60,0.2); }
+
+  .fc-node.active.purple-border { background: rgba(124,92,252,0.15); }
+  .fc-node.active.green-border  { background: rgba(52,211,153,0.1); }
+  .fc-node.active.pink-border   { background: rgba(244,114,182,0.1); }
+  .fc-node.active.blue-border   { background: rgba(96,165,250,0.1); }
+  .fc-node.active.orange-border { background: rgba(251,146,60,0.1); }
+
+  /* SVG arrows */
+  .fc-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .fc-svg line, .fc-svg path {
+    stroke: rgba(124,92,252,0.3);
+    stroke-width: 2;
+    fill: none;
+  }
+
+  .fc-svg .arrow-head {
+    fill: rgba(124,92,252,0.5);
+    stroke: none;
+  }
+
+  /* Animated data packet */
+  .data-packet {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-light);
+    box-shadow: 0 0 12px var(--accent-light);
+    z-index: 3;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Info tooltip for flowchart */
+  .fc-tooltip {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    background: var(--bg-card);
+    border: 1px solid rgba(124,92,252,0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    width: 220px;
+    text-align: left;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    z-index: 10;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+
+  .fc-node:hover .fc-tooltip, .fc-node.active .fc-tooltip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Keyboard hint */
+  .keyboard-hint {
+    position: fixed;
+    bottom: 30px;
+    left: 40px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    z-index: 100;
+  }
+
+  /* Contributor cards */
+  .contributor {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 20px 24px;
+    transition: all 0.3s;
+  }
+
+  .contributor:hover {
+    border-color: rgba(124, 92, 252, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+
+  .contributor-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .contributor-info h3 { margin-bottom: 2px; font-size: 1.1rem; }
+  .contributor-info p { color: var(--text-dim); font-size: 0.9rem; }
+
+  /* Future scope items */
+  .future-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+  }
+
+  .future-item .fi-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(124,92,252,0.15);
+    border: 1px solid rgba(124,92,252,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    flex-shrink: 0;
+  }
+
+  .future-item p { color: var(--text-dim); font-size: 0.95rem; line-height: 1.5; }
+  .future-item strong { color: var(--text-bright); }
+
+  /* ===== SLIDE 4: Category Filter ===== */
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-dim);
+    padding: 8px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s;
+    user-select: none;
+  }
+
+  .filter-btn:hover { border-color: rgba(124,92,252,0.3); color: var(--text); }
+
+  .filter-btn.active {
+    background: rgba(124,92,252,0.2);
+    border-color: var(--accent);
+    color: var(--text-bright);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  .filter-btn .filter-count {
+    display: inline-block;
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 0.75rem;
+    margin-left: 6px;
+  }
+
+  .filter-btn.active .filter-count {
+    background: rgba(124,92,252,0.3);
+  }
+
+  /* Feature card with hover-reveal tech tags */
+  .feature-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-tech-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.35s ease;
+  }
+
+  .feature-card:hover .card-tech-tags {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .tech-tag {
+    background: rgba(124,92,252,0.15);
+    border: 1px solid rgba(124,92,252,0.25);
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    color: var(--accent-light);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Hidden cards during filtering */
+  .feature-card.card-hidden {
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+    position: absolute;
+    visibility: hidden;
+  }
+
+  .feature-card {
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ===== SLIDE 7: Enhanced Contributors ===== */
+  .contributor-enhanced {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 20px 24px;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .contributor-enhanced::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(124,92,252,0.05), transparent);
+    transition: left 0.6s;
+  }
+
+  .contributor-enhanced:hover::before { left: 100%; }
+
+  .contributor-enhanced:hover {
+    border-color: rgba(124,92,252,0.4);
+    transform: translateX(8px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3), 0 0 20px var(--accent-glow);
+  }
+
+  .contributor-enhanced .contributor-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    transition: transform 0.4s;
+  }
+
+  .contributor-enhanced:hover .contributor-avatar {
+    transform: scale(1.1) rotate(5deg);
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .role-manager { background: rgba(251,146,60,0.15); color: var(--orange); border: 1px solid rgba(251,146,60,0.3); }
+  .role-developer { background: rgba(124,92,252,0.15); color: var(--accent-light); border: 1px solid rgba(124,92,252,0.3); }
+
+  /* ===== SLIDE 7: Enhanced Future Scope (Roadmap) ===== */
+  .roadmap {
+    position: relative;
+    padding-left: 28px;
+  }
+
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), var(--cyan), var(--green));
+    border-radius: 2px;
+  }
+
+  .roadmap-item {
+    position: relative;
+    padding: 8px 0 8px 20px;
+    transition: all 0.3s;
+    opacity: 0;
+    transform: translateX(-15px);
+  }
+
+  .slide.active .roadmap-item.rm-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .slide.active .roadmap-item:nth-child(1) { transition-delay: 0.3s; }
+  .slide.active .roadmap-item:nth-child(2) { transition-delay: 0.5s; }
+  .slide.active .roadmap-item:nth-child(3) { transition-delay: 0.7s; }
+  .slide.active .roadmap-item:nth-child(4) { transition-delay: 0.9s; }
+  .slide.active .roadmap-item:nth-child(5) { transition-delay: 1.1s; }
+  .slide.active .roadmap-item:nth-child(6) { transition-delay: 1.3s; }
+
+  .roadmap-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 16px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bg-dark);
+    border: 2px solid var(--accent);
+    transition: all 0.3s;
+    z-index: 2;
+  }
+
+  .roadmap-item:hover::before {
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    transform: scale(1.3);
+  }
+
+  .roadmap-item .rm-title {
+    font-weight: 600;
+    color: var(--text-bright);
+    font-size: 0.88rem;
+    transition: color 0.3s;
+  }
+
+  .roadmap-item:hover .rm-title { color: var(--accent-light); }
+
+  .roadmap-item .rm-desc.rm-always {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-top: 3px;
+  }
+
+  /* Motive card pulse */
+  .motive-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .motive-card::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(transparent, rgba(124,92,252,0.08), transparent, transparent);
+    animation: motiveRotate 6s linear infinite;
+  }
+
+  @keyframes motiveRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .motive-card > * { position: relative; z-index: 1; }
+
+  /* ===== SLIDE 8: Thank You ===== */
+  .thankyou-title {
+    font-size: 4.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-light), var(--cyan), var(--green));
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradientShift 4s ease-in-out infinite;
+    margin-bottom: 10px;
+  }
+
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .qa-badge {
+    display: inline-block;
+    padding: 14px 40px;
+    border-radius: 30px;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    background: rgba(124,92,252,0.15);
+    border: 2px solid var(--accent);
+    animation: qaPulse 2.5s ease-in-out infinite;
+    margin-top: 20px;
+    letter-spacing: 0.04em;
+  }
+
+  @keyframes qaPulse {
+    0%, 100% { box-shadow: 0 0 20px var(--accent-glow); transform: scale(1); }
+    50% { box-shadow: 0 0 50px var(--accent-glow), 0 0 80px rgba(124,92,252,0.1); transform: scale(1.03); }
+  }
+
+  .emoji-rain {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .emoji-drop {
+    position: absolute;
+    font-size: 1.8rem;
+    opacity: 0;
+    animation: emojiFloat linear infinite;
+  }
+
+  @keyframes emojiFloat {
+    0% { transform: translateY(-40px) rotate(0deg); opacity: 0; }
+    8% { opacity: 0.7; }
+    85% { opacity: 0.7; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+  }
+
+  .try-it-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(52,211,153,0.3);
+    border-radius: 16px;
+    padding: 28px 36px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s;
+    margin-top: 28px;
+  }
+
+  .try-it-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 30px rgba(52,211,153,0.15);
+    transform: translateY(-3px);
+  }
+
+  .try-it-card .code-block {
+    margin: 0;
+    font-size: 1rem;
+    padding: 14px 24px;
+  }
+
+  .links-row {
+    display: flex;
+    gap: 20px;
+    margin-top: 30px;
+    flex-wrap: wrap;
+  }
+
+  .link-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--bg-card);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 0.9rem;
+    transition: all 0.3s;
+    text-decoration: none;
+  }
+
+  .link-chip:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+
+  .link-chip .lc-icon { font-size: 1.3rem; }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<!-- ============================================ -->
+<!-- SLIDE 1: Title -->
+<!-- ============================================ -->
+<div class="slide active" id="slide-1">
+  <!-- Floating particles background -->
+  <div class="particles" id="particles-1"></div>
+
+  <!-- Orbiting tech icons -->
+  <div class="orbit-container">
+    <div class="orbit-ring orbit-ring-1"></div>
+    <div class="orbit-ring orbit-ring-2"></div>
+    <div class="orbit-center">&#129302;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 100px; animation-duration: 10s;">&#128241;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 100px; animation-duration: 10s; animation-delay: -3.3s;">&#128172;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 100px; animation-duration: 10s; animation-delay: -6.6s;">&#128276;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 150px; animation-duration: 16s;">&#9881;&#65039;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 150px; animation-duration: 16s; animation-delay: -4s;">&#128187;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 150px; animation-duration: 16s; animation-delay: -8s;">&#127908;</div>
+    <div class="orbit-icon" style="top:50%; left:50%; --orbit-r: 150px; animation-duration: 16s; animation-delay: -12s;">&#9729;&#65039;</div>
+  </div>
+
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; max-width: 60%;">
+    <div class="animate-in">
+      <span class="tag purple">FHL Project</span>
+    </div>
+    <h1 class="animate-in" style="font-size: 3.8rem;">Claude Code<br>Anywhere</h1>
+    <p class="subtitle animate-in" style="max-width: 700px;">
+      Use Claude Code from your phone, tablet, or any device.<br>
+      Get Teams notifications. Never miss a question.
+    </p>
+    <div class="stats animate-in">
+      <div class="stat">
+        <div class="number">0</div>
+        <div class="label">Frameworks</div>
+      </div>
+      <div class="stat">
+        <div class="number">0</div>
+        <div class="label">Build Steps</div>
+      </div>
+      <div class="stat">
+        <div class="number">1</div>
+        <div class="label">Setup Command</div>
+      </div>
+      <div class="stat">
+        <div class="number">2</div>
+        <div class="label">Dependencies</div>
+      </div>
+    </div>
+    <div class="code-block code-glow animate-in" style="max-width: 500px; min-height: 130px;" id="typingCode">
+      <span class="cmd">git clone</span> &lt;repo-url&gt;<br>
+      <span class="cmd">cd</span> FHL<br>
+      <span class="cmd">claude</span><br>
+      <span class="comment"># type: /setup</span><span class="typing-cursor"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 2: The Problem — Scenario Story -->
+<!-- ============================================ -->
+<div class="slide" id="slide-2">
+  <span class="tag orange animate-in">The Problem</span>
+  <h2 class="animate-in">Claude Code is powerful, but stuck on your terminal</h2>
+  <p class="subtitle animate-in" style="max-width: 850px; margin-bottom: 20px;">
+    Imagine this scenario &mdash; watch what happens when you step away:
+  </p>
+
+  <!-- Animated scenario timeline -->
+  <div class="scenario-strip">
+    <div class="scenario-step bad">
+      <span class="sc-icon">&#128187;</span>
+      <div class="sc-title">You start a task</div>
+      <div class="sc-desc">"Refactor the auth module" &mdash; Claude starts working in your terminal</div>
+      <span class="scenario-arrow">&rarr;</span>
+    </div>
+    <div class="scenario-step bad">
+      <span class="sc-icon">&#9749;</span>
+      <div class="sc-title">You step away</div>
+      <div class="sc-desc">Coffee break, meeting, or just stretching your legs</div>
+      <span class="scenario-arrow">&rarr;</span>
+    </div>
+    <div class="scenario-step bad">
+      <span class="sc-icon">&#10067;</span>
+      <div class="sc-title">Claude asks a question</div>
+      <div class="sc-desc">"Should I use JWT or sessions?" &mdash; blocked, waiting for your answer</div>
+      <span class="scenario-arrow">&rarr;</span>
+    </div>
+    <div class="scenario-step bad">
+      <span class="sc-icon">&#9203;</span>
+      <div class="sc-title">Minutes pass...</div>
+      <div class="sc-desc">Claude sits idle. No notification. No progress. Momentum lost.</div>
+      <span class="scenario-arrow">&rarr;</span>
+    </div>
+    <div class="scenario-step turn">
+      <span class="sc-icon">&#128561;</span>
+      <div class="sc-title">You return</div>
+      <div class="sc-desc">"Oh, it was waiting for me this whole time..."</div>
+    </div>
+  </div>
+
+  <!-- Before / After comparison -->
+  <div class="compare" style="margin-top: 8px;">
+    <div class="compare-col before animate-in" style="transition-delay: 1.8s;">
+      <h3>Without Claude Code Anywhere</h3>
+      <ul>
+        <li>Claude Code only works in your terminal</li>
+        <li>Step away = Claude sits idle waiting for you</li>
+        <li>No mobile access to coding sessions</li>
+        <li>Permission prompts block until you return</li>
+        <li>No way to know Claude needs you</li>
+        <li>Context lost when terminal disconnects</li>
+      </ul>
+    </div>
+    <div class="compare-col after animate-in" style="transition-delay: 2.1s;">
+      <h3>With Claude Code Anywhere</h3>
+      <ul>
+        <li>Access Claude from any device with a browser</li>
+        <li>Teams notification the instant Claude needs you</li>
+        <li>Respond from your phone during coffee break</li>
+        <li>Sessions persist across server restarts</li>
+        <li>QR code to instantly open on mobile</li>
+        <li>Import terminal sessions into web UI</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 3: Interactive Architecture Flowchart -->
+<!-- ============================================ -->
+<div class="slide" id="slide-3">
+  <span class="tag purple animate-in">Architecture</span>
+  <h2 class="animate-in">How It Works</h2>
+  <p class="subtitle animate-in" style="margin-bottom: 20px;">Click any node to see details. Watch the data flow in real-time.</p>
+
+  <div class="flowchart animate-in" id="flowchart">
+    <svg class="fc-svg" id="fc-svg"></svg>
+
+    <!-- Row 1: Browser Flow -->
+    <div class="fc-node blue-border" id="fc-phone" style="top: 30px; left: 2%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128241;</span>
+      <div class="fc-label">Your Device</div>
+      <div class="fc-title">Phone / Laptop</div>
+      <div class="fc-tooltip">Open the web UI from any device. Scan the QR code from your terminal or type the public URL. Works on phones, tablets, and laptops.</div>
+    </div>
+
+    <div class="fc-node green-border" id="fc-devtunnel" style="top: 30px; left: 22%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128272;</span>
+      <div class="fc-label">Tunnel</div>
+      <div class="fc-title">devtunnel</div>
+      <div class="fc-tooltip">Microsoft devtunnel creates a public HTTPS URL for the server. Handles auth and provides the QR code for instant phone access.</div>
+    </div>
+
+    <div class="fc-node purple-border" id="fc-server" style="top: 80px; left: 42%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#9881;&#65039;</span>
+      <div class="fc-label">Core</div>
+      <div class="fc-title">Node.js Server</div>
+      <div class="fc-tooltip">Pure Node.js HTTP server. Manages sessions, spawns Claude CLI processes, streams output, handles webhooks. Zero frameworks &mdash; only 2 npm dependencies.</div>
+    </div>
+
+    <div class="fc-node orange-border" id="fc-claude" style="top: 30px; left: 62%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#129302;</span>
+      <div class="fc-label">AI Engine</div>
+      <div class="fc-title">Claude CLI</div>
+      <div class="fc-tooltip">Claude Code CLI runs as a child process with --output-format json. Each session gets its own persistent conversation via --resume. Stdin disabled for safety.</div>
+    </div>
+
+    <div class="fc-node green-border" id="fc-code" style="top: 30px; left: 82%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128193;</span>
+      <div class="fc-label">Workspace</div>
+      <div class="fc-title">Your Code</div>
+      <div class="fc-tooltip">Each chat has its own working directory. Claude reads, edits, and creates files in your project. Change directory anytime with /cwd.</div>
+    </div>
+
+    <!-- Row 2: Teams Flow -->
+    <div class="fc-node pink-border" id="fc-teams" style="top: 220px; left: 2%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128172;</span>
+      <div class="fc-label">Teams</div>
+      <div class="fc-title">@ClaudeCode</div>
+      <div class="fc-tooltip">@mention Claude in any Teams channel. Messages go through the Outgoing Webhook to Cloudflare, then to the server. Responses post back to the channel.</div>
+    </div>
+
+    <div class="fc-node blue-border" id="fc-cloudflare" style="top: 220px; left: 22%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#9729;&#65039;</span>
+      <div class="fc-label">Tunnel</div>
+      <div class="fc-title">Cloudflare</div>
+      <div class="fc-tooltip">Cloudflare quick tunnel for Teams webhooks. Unlike devtunnel, it has no interstitial page &mdash; critical for server-to-server webhook calls from Teams.</div>
+    </div>
+
+    <div class="fc-node orange-border" id="fc-hooks" style="top: 220px; left: 62%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128276;</span>
+      <div class="fc-label">Hooks</div>
+      <div class="fc-title">Notify Teams</div>
+      <div class="fc-tooltip">Claude CLI hooks detect Stop, Permission Prompt, and Elicitation events. Sends an Adaptive Card to Teams so you know when Claude needs you &mdash; even from the terminal.</div>
+    </div>
+
+    <div class="fc-node pink-border" id="fc-notify" style="top: 220px; left: 82%;" onclick="fcClick(this)">
+      <span class="fc-icon">&#128244;</span>
+      <div class="fc-label">Alerts</div>
+      <div class="fc-title">Push / Toast / Email</div>
+      <div class="fc-tooltip">Multi-channel notifications: Windows desktop toast, browser Web Push, Outlook email, and in-page toast with sound. At least one will reach you.</div>
+    </div>
+
+    <!-- Animated packets -->
+    <div class="data-packet" id="pkt-1"></div>
+    <div class="data-packet" id="pkt-2"></div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 4: Features -->
+<!-- ============================================ -->
+<div class="slide" id="slide-4">
+  <span class="tag green animate-in">Features</span>
+  <h2 class="animate-in">Everything You Need, From Anywhere</h2>
+
+  <div class="filter-bar animate-in" id="featureFilters">
+    <button class="filter-btn active" data-filter="all" onclick="filterCards('all')">All <span class="filter-count">9</span></button>
+    <button class="filter-btn" data-filter="access" onclick="filterCards('access')">Access <span class="filter-count">3</span></button>
+    <button class="filter-btn" data-filter="chat" onclick="filterCards('chat')">Chat <span class="filter-count">3</span></button>
+    <button class="filter-btn" data-filter="notify" onclick="filterCards('notify')">Notifications <span class="filter-count">2</span></button>
+    <button class="filter-btn" data-filter="dev" onclick="filterCards('dev')">Developer <span class="filter-count">1</span></button>
+  </div>
+
+  <div class="cards three-col cards-animated" style="margin-top: 8px;" id="featureCards">
+    <div class="card feature-card" data-category="access">
+      <span class="icon">&#128241;</span>
+      <h3>Remote Access + QR Code</h3>
+      <p>Public HTTPS URL via devtunnel. Scan the QR code to open on your phone.</p>
+      <div class="card-tech-tags"><span class="tech-tag">devtunnel</span><span class="tech-tag">HTTPS</span><span class="tech-tag">QR</span></div>
+    </div>
+    <div class="card feature-card" data-category="chat">
+      <span class="icon">&#128172;</span>
+      <h3>Multi-Chat</h3>
+      <p>Multiple independent conversations, each with its own working directory.</p>
+      <div class="card-tech-tags"><span class="tech-tag">--resume</span><span class="tech-tag">--cwd</span><span class="tech-tag">sessions.json</span></div>
+    </div>
+    <div class="card feature-card" data-category="chat">
+      <span class="icon">&#9889;</span>
+      <h3>Queue / Interrupt</h3>
+      <p>Send follow-up messages while Claude is working. Queue, interrupt, or cancel.</p>
+      <div class="card-tech-tags"><span class="tech-tag">queue</span><span class="tech-tag">SIGINT</span><span class="tech-tag">priority</span></div>
+    </div>
+    <div class="card feature-card" data-category="chat">
+      <span class="icon">&#128190;</span>
+      <h3>Session Persistence</h3>
+      <p>Chats survive server restarts. Resume exactly where you left off.</p>
+      <div class="card-tech-tags"><span class="tech-tag">sessions.json</span><span class="tech-tag">--resume</span></div>
+    </div>
+    <div class="card feature-card" data-category="access">
+      <span class="icon">&#127908;</span>
+      <h3>Voice Input / Output</h3>
+      <p>Dictate messages with the mic button. Hear responses read aloud.</p>
+      <div class="card-tech-tags"><span class="tech-tag">SpeechRecognition</span><span class="tech-tag">SpeechSynthesis</span></div>
+    </div>
+    <div class="card feature-card" data-category="dev">
+      <span class="icon">&#128196;</span>
+      <h3>Rich Markdown</h3>
+      <p>Code blocks with syntax highlighting, tables, lists. One-click copy.</p>
+      <div class="card-tech-tags"><span class="tech-tag">marked.js</span><span class="tech-tag">highlight.js</span></div>
+    </div>
+    <div class="card feature-card" data-category="access">
+      <span class="icon">&#128187;</span>
+      <h3>Terminal Import</h3>
+      <p>Discover Claude sessions running in your terminal. Import or stop-and-import.</p>
+      <div class="card-tech-tags"><span class="tech-tag">process scan</span><span class="tech-tag">--resume</span></div>
+    </div>
+    <div class="card feature-card" data-category="notify">
+      <span class="icon">&#128064;</span>
+      <h3>Live Preview</h3>
+      <p>See Claude's partial output in real-time while it's thinking.</p>
+      <div class="card-tech-tags"><span class="tech-tag">streaming</span><span class="tech-tag">JSON lines</span></div>
+    </div>
+    <div class="card feature-card" data-category="notify">
+      <span class="icon">&#128276;</span>
+      <h3>Teams + Push + Toast + Email</h3>
+      <p>Multi-channel notifications. At least one will reach you.</p>
+      <div class="card-tech-tags"><span class="tech-tag">VAPID</span><span class="tech-tag">Adaptive Cards</span><span class="tech-tag">PowerShell</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 5: Teams Integration -->
+<!-- ============================================ -->
+<div class="slide" id="slide-5">
+  <span class="tag pink animate-in">Teams Integration</span>
+  <h2 class="animate-in">Claude in Your Teams Channel</h2>
+  <p class="subtitle animate-in" style="margin-bottom: 20px;">@mention Claude, get responses as channel messages, native notifications on all devices.</p>
+
+  <div class="split animate-in">
+    <div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot">1</div>
+          <div class="timeline-content">
+            Here is response from claude, It's your turn
+            <p>Type <code>@ClaudeCode</code> followed by your question in any configured channel.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">2</div>
+          <div class="timeline-content">
+            <h3>Quick or Long Response</h3>
+            <p><strong>&lt; 8s:</strong> Claude responds inline.<br><strong>&gt; 8s:</strong> "Working on it..." then full response via Incoming Webhook.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">3</div>
+          <div class="timeline-content">
+            <h3>Session Persistence</h3>
+            <p>Each Teams user gets their own Claude session. Context preserved across messages.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">4</div>
+          <div class="timeline-content">
+            <h3>Native Notifications</h3>
+            <p>Channel messages trigger Teams notifications on desktop and mobile.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom: 14px;">CLI Notification Hooks</h3>
+      <p style="color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; font-size: 0.95rem;">
+        Even from the <strong>terminal</strong>, get Teams alerts when Claude needs you:
+      </p>
+      <div class="card" style="margin-bottom: 12px; padding: 16px;">
+        <h3 style="color: var(--orange); font-size: 1.1rem;">Stop Event</h3>
+        <p>"Claude is waiting for your response" &mdash; finished and needs your next input.</p>
+      </div>
+      <div class="card" style="margin-bottom: 12px; padding: 16px;">
+        <h3 style="color: var(--pink); font-size: 1.1rem;">Permission Prompt</h3>
+        <p>"Claude needs permission" &mdash; wants to run a command or modify a file.</p>
+      </div>
+      <div class="card" style="padding: 16px;">
+        <h3 style="color: var(--blue); font-size: 1.1rem;">Elicitation Dialog</h3>
+        <p>"Claude needs your decision" &mdash; asking you to choose between options.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 6: Setup -->
+<!-- ============================================ -->
+<div class="slide" id="slide-6">
+  <span class="tag green animate-in">Getting Started</span>
+  <h2 class="animate-in">Setup in Under 2 Minutes</h2>
+  <p class="subtitle animate-in">Three ways to get up and running. Pick what suits you.</p>
+
+  <div class="cards three-col animate-in">
+    <div class="card" style="border-color: rgba(124, 92, 252, 0.3);">
+      <span class="tag purple" style="margin-bottom: 16px;">Recommended</span>
+      <h3>Claude CLI Setup</h3>
+      <div class="code-block" style="font-size: 0.8rem; margin: 14px 0;">
+        <span class="cmd">claude</span><br>
+        <span class="comment"># type: /setup</span>
+      </div>
+      <p>Claude walks you through everything interactively. Installs prerequisites, configures Teams, sets up hooks, starts the server.</p>
+    </div>
+    <div class="card">
+      <h3>Setup Script</h3>
+      <div class="code-block" style="font-size: 0.8rem; margin: 14px 0;">
+        <span class="comment"># Windows</span><br>
+        <span class="cmd">.\setup.ps1</span><br><br>
+        <span class="comment"># macOS / Linux</span><br>
+        <span class="cmd">./setup.sh</span>
+      </div>
+      <p>Platform-specific script checks prerequisites, installs missing tools, and starts the server.</p>
+    </div>
+    <div class="card">
+      <h3>Manual Setup</h3>
+      <div class="code-block" style="font-size: 0.8rem; margin: 14px 0;">
+        <span class="cmd">npm install</span><br>
+        <span class="cmd">npm start</span>
+      </div>
+      <p>Install Node.js 18+, Claude CLI, and devtunnel yourself. Then <code>npm install</code> and go.</p>
+    </div>
+  </div>
+
+  <div style="margin-top: 24px;" class="animate-in">
+    <h3 style="margin-bottom: 12px;">Prerequisites</h3>
+    <table class="styled-table">
+      <thead>
+        <tr><th>Tool</th><th>Required?</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Node.js v18+</strong></td>
+          <td><span style="color: var(--green);">Required</span></td>
+          <td>Runs the server</td>
+        </tr>
+        <tr>
+          <td><strong>Claude Code CLI</strong></td>
+          <td><span style="color: var(--green);">Required</span></td>
+          <td>The AI engine &mdash; needs Anthropic API key or Max subscription</td>
+        </tr>
+        <tr>
+          <td><strong>devtunnel</strong></td>
+          <td><span style="color: var(--orange);">Optional</span></td>
+          <td>Remote access from phone/tablet via public HTTPS URL</td>
+        </tr>
+        <tr>
+          <td><strong>cloudflared</strong></td>
+          <td><span style="color: var(--orange);">Optional</span></td>
+          <td>Teams webhook tunnel (no interstitial page)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 7: Contributors, Motive & Future Scope -->
+<!-- ============================================ -->
+<div class="slide" id="slide-7">
+  <div style="flex:1; display:flex; flex-direction:column;">
+    <span class="tag cyan animate-in">The Team</span>
+    <h2 class="animate-in">Contributors, Motive & Future Scope</h2>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 24px; flex:1; align-content: start;">
+
+      <!-- Left Column: Contributors + Motive -->
+      <div>
+        <h3 class="animate-in" style="margin-bottom: 16px; color: var(--text-bright);">Contributors</h3>
+        <div style="display:flex; flex-direction:column; gap: 14px;" class="animate-in">
+
+          <div class="contributor-enhanced">
+            <div class="contributor-avatar" style="background: linear-gradient(135deg, #fb923c, #fdba74); color: #0f172a;">AK</div>
+            <div class="contributor-info">
+              <h3 style="color: var(--text-bright);">Ashish Kango <span class="role-badge role-manager">Manager</span></h3>
+              
+            </div>
+          </div>
+          <div class="contributor-enhanced">
+            <div class="contributor-avatar" style="background: linear-gradient(135deg, #7c5cfc, #a78bfa); color: #fff;">SS</div>
+            <div class="contributor-info">
+              <h3 style="color: var(--text-bright);">Sumanasa Somu <span class="role-badge role-developer">Developer</span></h3>
+              
+            </div>
+          </div>
+          <div class="contributor-enhanced">
+            <div class="contributor-avatar" style="background: linear-gradient(135deg, #34d399, #6ee7b7); color: #0f172a;">AK</div>
+            <div class="contributor-info">
+              <h3 style="color: var(--text-bright);">Ajay Kumar <span class="role-badge role-developer">Developer</span></h3>
+              
+            </div>
+          </div>
+        </div>
+
+        <h3 class="animate-in" style="margin-top: 24px; margin-bottom: 12px; color: var(--text-bright);">Motive</h3>
+        <div class="card motive-card animate-in" style="padding: 18px;">
+          <p style="font-size: 0.95rem; line-height: 1.7; color: var(--text);">
+            AI coding assistants like Claude Code are transforming how developers work &mdash; but they're locked to the terminal. We built <strong>Claude Code Anywhere</strong> to break that barrier: access your AI assistant from any device, stay notified through Teams, and never lose momentum when you step away from your desk. Our goal is to make AI-assisted development <strong>truly mobile and collaborative</strong>.
+          </p>
+        </div>
+      </div>
+
+      <!-- Right Column: Future Scope -->
+      <div>
+        <h3 class="animate-in" style="margin-bottom: 16px; color: var(--text-bright);">Future Scope</h3>
+        <div class="roadmap animate-in" id="roadmap">
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">Interactive Teams Action Cards</div>
+            <div class="rm-desc rm-always">When Claude asks a question (Yes/No, A/B/C), send Adaptive Cards with clickable buttons to Teams.</div>
+          </div>
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">Multi-User Collaboration</div>
+            <div class="rm-desc rm-always">Multiple team members join the same Claude session in real-time, like a shared workspace.</div>
+          </div>
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">File Browser & Editor</div>
+            <div class="rm-desc rm-always">Browse project files, view diffs, and approve changes directly from the web UI.</div>
+          </div>
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">Scheduled Tasks</div>
+            <div class="rm-desc rm-always">Recurring Claude tasks (daily code review, weekly audit) that run and report to Teams.</div>
+          </div>
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">Teams Tab App</div>
+            <div class="rm-desc rm-always">Embed the full web UI as a native Teams tab. No tunnels needed for the UI.</div>
+          </div>
+          <div class="roadmap-item rm-visible">
+            <div class="rm-title">Analytics Dashboard</div>
+            <div class="rm-desc rm-always">Track usage patterns, session durations, and productivity metrics across the team.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SLIDE 8: Thank You & Q&A -->
+<!-- ============================================ -->
+<div class="slide" id="slide-8">
+  <!-- Emoji rain background -->
+  <div class="emoji-rain" id="emoji-rain"></div>
+
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="animate-in">
+      <div class="thankyou-title">Thank You!</div>
+    </div>
+    <p class="subtitle animate-in" style="max-width: 650px; margin-bottom: 10px;">
+      We hope you're as excited about <strong style="color:var(--accent-light);">Claude Code Anywhere</strong> as we are.<br>
+      This is just the beginning.
+    </p>
+
+    <div class="qa-badge animate-in">Questions &amp; Discussion</div>
+
+    <div class="try-it-card animate-in">
+      <span style="font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Try it right now</span>
+      <div class="code-block" style="max-width: 400px;">
+        <span class="cmd">git clone</span> &lt;repo-url&gt;<br>
+        <span class="cmd">cd</span> FHL && <span class="cmd">npm install</span><br>
+        <span class="cmd">npm start</span><span class="typing-cursor"></span>
+      </div>
+    </div>
+
+    <div class="links-row animate-in">
+      <div class="link-chip">
+        <span class="lc-icon">&#128187;</span>
+        <span>localhost:3847</span>
+      </div>
+      <div class="link-chip">
+        <span class="lc-icon">&#128241;</span>
+        <span>Scan QR on phone</span>
+      </div>
+      <div class="link-chip">
+        <span class="lc-icon">&#128172;</span>
+        <span>@ClaudeCode in Teams</span>
+      </div>
+    </div>
+
+    <p class="animate-in" style="margin-top: 30px; color: var(--text-dim); font-size: 0.9rem;">
+      Built with &#10084;&#65039; by <strong style="color:var(--orange);">Ashish Kango</strong>, <strong style="color:var(--accent-light);">Sumanasa Somu</strong> &amp; <strong style="color:var(--green);">Ajay Kumar</strong>
+    </p>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <span class="slide-counter" id="counter">1 / 8</span>
+  <button onclick="prevSlide()" title="Previous (Left Arrow)">&#8592;</button>
+  <button onclick="nextSlide()" title="Next (Right Arrow)">&#8594;</button>
+</div>
+
+<div class="keyboard-hint">
+  <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to navigate &nbsp;&bull;&nbsp; <kbd>F</kbd> fullscreen
+</div>
+
+<script>
+  // ===== Slide 1: Particles =====
+  (function createParticles() {
+    const container = document.getElementById('particles-1');
+    if (!container) return;
+    const colors = ['rgba(124,92,252,0.4)', 'rgba(167,139,250,0.3)', 'rgba(52,211,153,0.3)', 'rgba(96,165,250,0.3)', 'rgba(244,114,182,0.25)'];
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 3 + Math.random() * 5;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.animationDuration = (8 + Math.random() * 12) + 's';
+      p.style.animationDelay = (Math.random() * 10) + 's';
+      container.appendChild(p);
+    }
+  })();
+
+  // Typing cursor is CSS-only (blinks via animation), no JS needed.
+
+  // ===== Slide 8: Emoji Rain =====
+  (function createEmojiRain() {
+    const container = document.getElementById('emoji-rain');
+    if (!container) return;
+    const emojis = ['\u{1F680}', '\u{2728}', '\u{1F4A1}', '\u{1F389}', '\u{1F916}', '\u{1F4BB}', '\u{2615}', '\u{1F525}', '\u{1F4F1}', '\u{1F514}', '\u{2B50}', '\u{1F3AF}'];
+    for (let i = 0; i < 25; i++) {
+      const e = document.createElement('div');
+      e.className = 'emoji-drop';
+      e.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      e.style.left = Math.random() * 100 + '%';
+      e.style.animationDuration = (6 + Math.random() * 10) + 's';
+      e.style.animationDelay = (Math.random() * 8) + 's';
+      e.style.fontSize = (1.2 + Math.random() * 1.2) + 'rem';
+      container.appendChild(e);
+    }
+  })();
+
+
+  // ===== Slide Navigation =====
+  let current = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+
+  function showSlide(n) {
+    slides[current].classList.remove('active');
+    current = ((n % total) + total) % total;
+    slides[current].classList.add('active');
+    document.getElementById('counter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('progress').style.width = `${((current + 1) / total) * 100}%`;
+    // Start flowchart animation when on slide 3
+    if (current === 2) startFlowAnimation();
+    else stopFlowAnimation();
+  }
+
+  function nextSlide() { showSlide(current + 1); }
+  function prevSlide() { showSlide(current - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Home') { e.preventDefault(); showSlide(0); }
+    if (e.key === 'End') { e.preventDefault(); showSlide(total - 1); }
+    if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(diff) > 50) { diff < 0 ? nextSlide() : prevSlide(); }
+  });
+
+  document.getElementById('progress').style.width = `${(1 / total) * 100}%`;
+
+  // ===== Interactive Flowchart =====
+  function fcClick(el) {
+    // Toggle active state
+    const wasActive = el.classList.contains('active');
+    document.querySelectorAll('.fc-node').forEach(n => n.classList.remove('active'));
+    if (!wasActive) el.classList.add('active');
+  }
+
+  // Draw SVG arrows between nodes
+  function drawArrows() {
+    const svg = document.getElementById('fc-svg');
+    const chart = document.getElementById('flowchart');
+    if (!chart || !svg) return;
+
+    const rect = chart.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+    svg.innerHTML = '';
+
+    const connections = [
+      ['fc-phone', 'fc-devtunnel'],
+      ['fc-devtunnel', 'fc-server'],
+      ['fc-server', 'fc-claude'],
+      ['fc-claude', 'fc-code'],
+      ['fc-teams', 'fc-cloudflare'],
+      ['fc-cloudflare', 'fc-server'],
+      ['fc-server', 'fc-hooks'],
+      ['fc-hooks', 'fc-notify'],
+    ];
+
+    connections.forEach(([fromId, toId]) => {
+      const from = document.getElementById(fromId);
+      const to = document.getElementById(toId);
+      if (!from || !to) return;
+
+      const fR = from.getBoundingClientRect();
+      const tR = to.getBoundingClientRect();
+      const x1 = fR.left + fR.width / 2 - rect.left;
+      const y1 = fR.top + fR.height / 2 - rect.top;
+      const x2 = tR.left + tR.width / 2 - rect.left;
+      const y2 = tR.top + tR.height / 2 - rect.top;
+
+      // Line
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      svg.appendChild(line);
+
+      // Arrow head
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLen = 10;
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const p1x = mx - headLen * Math.cos(angle - 0.4);
+      const p1y = my - headLen * Math.sin(angle - 0.4);
+      const p2x = mx - headLen * Math.cos(angle + 0.4);
+      const p2y = my - headLen * Math.sin(angle + 0.4);
+      const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      arrow.setAttribute('points', `${mx},${my} ${p1x},${p1y} ${p2x},${p2y}`);
+      arrow.setAttribute('class', 'arrow-head');
+      svg.appendChild(arrow);
+    });
+  }
+
+  // Animate data packets flowing along paths
+  let flowAnimId = null;
+  const packetPaths = [
+    ['fc-phone', 'fc-devtunnel', 'fc-server', 'fc-claude', 'fc-code'],
+    ['fc-teams', 'fc-cloudflare', 'fc-server', 'fc-hooks', 'fc-notify'],
+  ];
+
+  function animatePacket(pktEl, pathIds, duration, delay) {
+    const chart = document.getElementById('flowchart');
+    const chartRect = chart.getBoundingClientRect();
+    const points = pathIds.map(id => {
+      const el = document.getElementById(id);
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - chartRect.left, y: r.top + r.height / 2 - chartRect.top };
+    });
+
+    let startTime = null;
+    let delayMs = delay;
+
+    function step(ts) {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime - delayMs;
+
+      if (elapsed < 0) {
+        pktEl.style.opacity = '0';
+        flowAnimId = requestAnimationFrame(step);
+        return;
+      }
+
+      const totalDist = points.reduce((sum, p, i) => {
+        if (i === 0) return 0;
+        return sum + Math.hypot(p.x - points[i-1].x, p.y - points[i-1].y);
+      }, 0);
+
+      const progress = (elapsed % duration) / duration;
+      const targetDist = progress * totalDist;
+
+      let accumulated = 0;
+      for (let i = 1; i < points.length; i++) {
+        const segLen = Math.hypot(points[i].x - points[i-1].x, points[i].y - points[i-1].y);
+        if (accumulated + segLen >= targetDist) {
+          const t = (targetDist - accumulated) / segLen;
+          const x = points[i-1].x + (points[i].x - points[i-1].x) * t;
+          const y = points[i-1].y + (points[i].y - points[i-1].y) * t;
+          pktEl.style.left = `${x - 5}px`;
+          pktEl.style.top = `${y - 5}px`;
+          pktEl.style.opacity = '1';
+          break;
+        }
+        accumulated += segLen;
+      }
+
+      flowAnimId = requestAnimationFrame(step);
+    }
+
+    flowAnimId = requestAnimationFrame(step);
+  }
+
+  function startFlowAnimation() {
+    stopFlowAnimation();
+    setTimeout(() => {
+      drawArrows();
+      animatePacket(document.getElementById('pkt-1'), packetPaths[0], 4000, 0);
+      animatePacket(document.getElementById('pkt-2'), packetPaths[1], 4000, 2000);
+    }, 600);
+  }
+
+  function stopFlowAnimation() {
+    if (flowAnimId) cancelAnimationFrame(flowAnimId);
+    document.querySelectorAll('.data-packet').forEach(p => p.style.opacity = '0');
+  }
+
+  // Redraw arrows on resize
+  window.addEventListener('resize', () => { if (current === 2) drawArrows(); });
+
+  // ===== Slide 4: Category Filter =====
+  function filterCards(category) {
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === category);
+    });
+
+    document.querySelectorAll('.feature-card').forEach(c => {
+      const match = category === 'all' || c.dataset.category === category;
+      if (match) {
+        c.classList.remove('card-hidden');
+      } else {
+        c.classList.add('card-hidden');
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
