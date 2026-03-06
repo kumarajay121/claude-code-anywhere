@@ -182,10 +182,108 @@ else
   fi
 fi
 
+# ── 5. Configure environment variables ──
+step "Configuring environment variables..."
+echo "   These values are needed for Teams integration and push notifications."
+echo "   Press Enter to skip any value you don't have yet."
+
+# Detect shell profile
+SHELL_PROFILE=""
+if [ -f "$HOME/.zshrc" ]; then
+  SHELL_PROFILE="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+  SHELL_PROFILE="$HOME/.bashrc"
+elif [ -f "$HOME/.bash_profile" ]; then
+  SHELL_PROFILE="$HOME/.bash_profile"
+fi
+
+add_env_var() {
+  local var_name="$1"
+  local var_prompt="$2"
+  local current_val="${!var_name:-}"
+
+  if [ -n "$current_val" ]; then
+    ok "$var_name is already set"
+    return
+  fi
+
+  read -rp "   $var_prompt: " input_val
+  if [ -n "$input_val" ]; then
+    export "$var_name=$input_val"
+    if [ -n "$SHELL_PROFILE" ]; then
+      if ! grep -q "$var_name" "$SHELL_PROFILE" 2>/dev/null; then
+        echo "export $var_name=\"$input_val\"" >> "$SHELL_PROFILE"
+      fi
+    fi
+    ok "$var_name saved"
+  else
+    warn "Skipped $var_name"
+  fi
+}
+
+echo ""
+echo "   -- Teams Integration --"
+add_env_var "TEAMS_WEBHOOK_SECRET" "Teams Outgoing Webhook HMAC secret"
+add_env_var "TEAMS_INCOMING_WEBHOOK_URL" "Teams Incoming Webhook URL (via Workflow)"
+
+echo ""
+echo "   -- Push Notifications (auto-generated if empty) --"
+if [ -z "${VAPID_PUBLIC_KEY:-}" ] || [ -z "${VAPID_PRIVATE_KEY:-}" ]; then
+  echo -n "   Generate VAPID keys for web push notifications? (Y/n) "
+  read -r ans
+  if [ "$ans" != "n" ]; then
+    VAPID_KEYS=$(node -e "const wp=require('web-push');const k=wp.generateVAPIDKeys();console.log(k.publicKey+' '+k.privateKey);" 2>/dev/null || echo "")
+    if [ -n "$VAPID_KEYS" ]; then
+      VAPID_PUB=$(echo "$VAPID_KEYS" | cut -d' ' -f1)
+      VAPID_PRIV=$(echo "$VAPID_KEYS" | cut -d' ' -f2)
+      export VAPID_PUBLIC_KEY="$VAPID_PUB"
+      export VAPID_PRIVATE_KEY="$VAPID_PRIV"
+      if [ -n "$SHELL_PROFILE" ]; then
+        if ! grep -q "VAPID_PUBLIC_KEY" "$SHELL_PROFILE" 2>/dev/null; then
+          echo "export VAPID_PUBLIC_KEY=\"$VAPID_PUB\"" >> "$SHELL_PROFILE"
+          echo "export VAPID_PRIVATE_KEY=\"$VAPID_PRIV\"" >> "$SHELL_PROFILE"
+        fi
+      fi
+      ok "VAPID keys generated and saved"
+    else
+      warn "Could not generate VAPID keys (run npm install first). Skipping."
+    fi
+  else
+    warn "Skipped VAPID keys"
+  fi
+else
+  ok "VAPID keys already set"
+fi
+
+echo ""
+echo "   -- Optional --"
+add_env_var "CLAUDE_TEAMS_WEBHOOK_URL" "Claude Code notify hook webhook URL (for CLI notifications)"
+
+if [ -n "$SHELL_PROFILE" ]; then
+  ok "Environment variables saved to $SHELL_PROFILE"
+  echo "   Run: source $SHELL_PROFILE  (to load in current session)"
+fi
+
 step "Installing project dependencies..."
 cd "$SCRIPT_DIR"
 npm install --silent 2>/dev/null || npm install
 ok "Dependencies installed"
+
+# ── 6. Teams Notification Hook (optional) ──
+step "Teams notification hook..."
+echo "   Get notified in Teams when Claude needs your attention (stops, asks permission, etc.)"
+echo -n "   Set up Teams notification hook? (Y/n) "
+read -r ans
+if [ "$ans" != "n" ]; then
+  if [ -f "$SCRIPT_DIR/hooks/setup-hooks.sh" ]; then
+    chmod +x "$SCRIPT_DIR/hooks/setup-hooks.sh"
+    bash "$SCRIPT_DIR/hooks/setup-hooks.sh"
+  else
+    fail "hooks/setup-hooks.sh not found"
+  fi
+else
+  warn "Skipping Teams notification hook. Run hooks/setup-hooks.sh later to set it up."
+fi
 
 # ── Start ──
 if [ "$SKIP_START" = true ]; then
