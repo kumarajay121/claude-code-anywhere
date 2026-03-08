@@ -7,8 +7,19 @@
 #
 # Run setup-hooks.sh to install automatically, or see README.md for manual setup.
 
-# Hardcoded webhook URL for dedicated notification channel
-TEAMS_WEBHOOK_URL="https://839eace659ab424397eca5b8fcc104.e4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/f64fc6de775d4f8d98b6b336f8263882/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=FX8yCznNKzSE2_cKJMSSf0z3eAqPeqNBgPyuIM3EEbc"
+# Load environment variable from shell profile if not already set
+if [ -z "${CLAUDE_TEAMS_WEBHOOK_URL:-}" ]; then
+  [ -f ~/.bashrc ] && source ~/.bashrc
+  [ -f ~/.zshrc ] && source ~/.zshrc
+fi
+
+TEAMS_WEBHOOK_URL="${CLAUDE_TEAMS_WEBHOOK_URL:-}"
+
+if [ -z "$TEAMS_WEBHOOK_URL" ]; then
+  echo "Error: CLAUDE_TEAMS_WEBHOOK_URL environment variable is not set." >&2
+  echo "Run: export CLAUDE_TEAMS_WEBHOOK_URL=\"<your-webhook-url>\"" >&2
+  exit 1
+fi
 
 # Read the hook input from stdin
 INPUT=$(cat)
@@ -59,7 +70,7 @@ process.stdin.on("end", () => {
     // Build title and message based on event type
     let title, message;
     if (hookEvent === "Stop") {
-        title = "Here is response from claude, Its your turn";
+        title = "Here is response from claude, It's your turn";
         message = hookMessage || "Claude has finished and needs your input to continue.";
     } else if (notificationType === "elicitation_dialog") {
         title = "Claude needs your decision";
