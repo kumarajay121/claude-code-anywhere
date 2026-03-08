@@ -1350,127 +1350,133 @@
   /* ===== MOBILE RESPONSIVE ===== */
 
   @media (max-width: 768px) {
+    /* CRITICAL: allow slides to scroll on mobile */
+    body { overflow: hidden; }
     .slide {
-      padding: 20px 24px;
+      padding: 16px 20px 70px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      height: 100vh;
+      display: none;
     }
+    .slide.active { display: flex; }
 
-    h1 { font-size: 2.2rem !important; }
-    h2 { font-size: 1.5rem; margin-bottom: 8px; }
-    h3 { font-size: 1.05rem; }
-    .subtitle { font-size: 0.95rem; margin-bottom: 20px; }
+    /* Hide decorative elements that cause overlap */
+    .slide::before { display: none; }
+    .particles, .slide2-bottom-bar, .slide2-ticker, .emoji-rain { display: none; }
+    .orbit-container { display: none; }
+    #slide-1 > div:last-child { max-width: 100% !important; }
+
+    /* Typography */
+    h1 { font-size: 2rem !important; }
+    h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    h3 { font-size: 1rem; margin-bottom: 6px; }
+    .subtitle { font-size: 0.9rem; margin-bottom: 14px; line-height: 1.4; }
+    .tag { font-size: 0.68rem; padding: 3px 10px; margin-bottom: 10px; }
 
     /* Stats row */
-    .stats { gap: 16px; margin: 16px 0; flex-wrap: wrap; }
-    .stat .number { font-size: 1.8rem; }
-    .stat .label { font-size: 0.72rem; }
-
-    /* Cards: single column on mobile */
-    .cards.three-col, .cards.two-col { grid-template-columns: 1fr; gap: 10px; }
-    .card { padding: 14px 16px; }
-    .card .icon { font-size: 1.3rem; margin-bottom: 6px; }
-    .card p { font-size: 0.8rem; }
+    .stats { gap: 14px; margin: 14px 0; flex-wrap: wrap; }
+    .stat .number { font-size: 1.6rem; }
+    .stat .label { font-size: 0.7rem; }
 
     /* Code blocks */
-    .code-block { padding: 12px 16px; font-size: 0.78rem; min-height: auto !important; }
+    .code-block { padding: 10px 14px; font-size: 0.75rem; min-height: auto !important; line-height: 1.5; }
 
-    /* Slide 1: orbit smaller */
-    .orbit-container { width: 180px; height: 180px; right: 5%; }
-    .orbit-ring-1 { width: 120px; height: 120px; }
-    .orbit-ring-2 { width: 170px; height: 170px; }
-    .orbit-icon { font-size: 1rem; }
-    .orbit-center { width: 40px; height: 40px; font-size: 1.2rem; }
+    /* Cards: 2 columns on tablet, 1 on phone */
+    .cards.three-col { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cards.two-col { grid-template-columns: 1fr; gap: 8px; }
+    .card { padding: 12px 14px; }
+    .card .icon { font-size: 1.2rem; margin-bottom: 4px; }
+    .card h3 { font-size: 0.9rem; }
+    .card p { font-size: 0.75rem; line-height: 1.4; }
+    .card-tech-tags { margin-top: 6px; }
+    .tech-tag { font-size: 0.65rem; padding: 2px 8px; }
 
-    /* Slide 1: content width */
-    #slide-1 > div:last-child { max-width: 75% !important; }
+    /* Filter bar */
+    .filter-bar { gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
+    .filter-btn { padding: 5px 12px; font-size: 0.72rem; }
+    .filter-btn .filter-count { font-size: 0.65rem; padding: 0 6px; margin-left: 4px; }
 
-    /* Slide 2: scenario strip vertical */
-    .scenario-strip {
-      flex-direction: column;
-      gap: 8px;
-      overflow-y: auto;
-      max-height: 40vh;
-    }
-    .scenario-step { min-width: unset; padding: 10px 14px; }
-    .scenario-step .sc-icon { font-size: 1.5rem; }
-    .scenario-step .sc-title { font-size: 0.82rem; }
-    .scenario-step .sc-desc { font-size: 0.72rem; }
+    /* Slide 2: scenario strip */
+    .scenario-strip { flex-direction: column; gap: 6px; }
+    .scenario-step { min-width: unset; padding: 8px 12px; }
+    .scenario-step .sc-icon { font-size: 1.3rem; margin-bottom: 4px; }
+    .scenario-step .sc-title { font-size: 0.78rem; }
+    .scenario-step .sc-desc { font-size: 0.68rem; display: none; }
     .scenario-arrow { display: none; }
 
-    /* Slide 2: compare columns stack */
-    .compare { flex-direction: column; gap: 10px; }
-    .compare-col { padding: 14px; }
-    .compare-col h3 { font-size: 0.95rem; margin-bottom: 8px; }
-    .compare-col li { font-size: 0.8rem; padding: 4px 0; }
+    /* Slide 2: compare */
+    .compare { flex-direction: column; gap: 8px; margin-top: 6px !important; }
+    .compare-col { padding: 12px; }
+    .compare-col h3 { font-size: 0.88rem; margin-bottom: 6px; }
+    .compare-col li { font-size: 0.75rem; padding: 3px 0; padding-left: 18px; }
 
-    /* Slide 3: flowchart scroll */
-    .flowchart { overflow: auto; min-height: 500px; }
-    .fc-node { min-width: 100px; padding: 10px 12px; }
-    .fc-node .fc-icon { font-size: 1.2rem; }
-    .fc-node .fc-label { font-size: 0.65rem; }
-    .fc-node .fc-title { font-size: 0.8rem; }
-    .fc-tooltip { width: 170px; font-size: 0.75rem; padding: 8px 10px; }
-
-    /* Slide 4: filter bar */
-    .filter-bar { gap: 6px; margin-bottom: 10px; }
-    .filter-btn { padding: 6px 14px; font-size: 0.75rem; }
+    /* Slide 3: flowchart - horizontal scroll */
+    .flowchart { overflow: auto; min-height: 400px; }
+    .fc-node { min-width: 90px; padding: 8px 10px; }
+    .fc-node .fc-icon { font-size: 1rem; margin-bottom: 4px; }
+    .fc-node .fc-label { font-size: 0.6rem; }
+    .fc-node .fc-title { font-size: 0.72rem; }
+    .fc-tooltip { display: none; }
 
     /* Slide 5: video */
-    #slide-5 .animate-in { max-height: calc(100vh - 180px) !important; }
-    #slide-5 .animate-in > div { height: calc(100vh - 190px) !important; max-height: 400px !important; }
+    #slide-5 .animate-in > div { height: 50vh !important; max-height: 300px !important; }
 
-    /* Slide 6: split layout stack */
-    .split { grid-template-columns: 1fr; gap: 20px; }
+    /* Slide 6: split stack */
+    .split { grid-template-columns: 1fr; gap: 14px; }
 
-    /* Slide 7: setup table */
-    .styled-table { font-size: 0.8rem; }
-    .styled-table th, .styled-table td { padding: 8px 10px; }
+    /* Slide 7: table */
+    .styled-table { font-size: 0.75rem; }
+    .styled-table th, .styled-table td { padding: 6px 8px; }
 
-    /* Slide 8: two-column grid stack */
+    /* Slide 8: stack columns */
     #slide-8 > div > div:nth-child(2) {
       grid-template-columns: 1fr !important;
-      gap: 20px !important;
+      gap: 16px !important;
     }
-    .contributor-enhanced { padding: 14px 16px; }
-    .contributor-enhanced .contributor-avatar { width: 42px; height: 42px; font-size: 1.1rem; }
-    .role-badge { font-size: 0.68rem; padding: 1px 8px; }
-    .roadmap-item .rm-title { font-size: 0.82rem; }
-    .roadmap-item .rm-desc.rm-always { font-size: 0.72rem; }
+    .contributor-enhanced { padding: 12px 14px; gap: 12px; }
+    .contributor-enhanced .contributor-avatar { width: 38px; height: 38px; font-size: 1rem; }
+    .contributor-info h3 { font-size: 0.9rem !important; }
+    .contributor-info p { font-size: 0.78rem; }
+    .role-badge { font-size: 0.65rem; padding: 1px 7px; }
+    .motive-card { padding: 14px !important; }
+    .motive-card p { font-size: 0.82rem !important; line-height: 1.5 !important; }
+    .roadmap { padding-left: 22px; }
+    .roadmap-item { padding: 6px 0 6px 16px; }
+    .roadmap-item .rm-title { font-size: 0.78rem; }
+    .roadmap-item .rm-desc.rm-always { font-size: 0.68rem; }
 
     /* Slide 9: thank you */
-    .thankyou-title { font-size: 2.8rem !important; }
-    .qa-badge { font-size: 1rem; padding: 10px 28px; }
-    .try-it-card { padding: 18px 22px; }
-    .links-row { gap: 10px; }
-    .link-chip { padding: 8px 14px; font-size: 0.8rem; }
+    .thankyou-title { font-size: 2.5rem !important; }
+    .qa-badge { font-size: 0.95rem; padding: 10px 24px; margin-top: 12px; }
+    .try-it-card { padding: 16px 20px; margin-top: 16px; }
+    .try-it-card .code-block { font-size: 0.8rem; }
+    .links-row { gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .link-chip { padding: 8px 12px; font-size: 0.78rem; }
 
-    /* Navigation */
-    .nav { bottom: 16px; right: 16px; }
-    .nav button { width: 36px; height: 36px; font-size: 14px; }
-    .slide-counter { font-size: 12px; }
+    /* Navigation - fixed at bottom, always visible */
+    .nav { bottom: 10px; right: 12px; z-index: 200; }
+    .nav button { width: 34px; height: 34px; font-size: 14px; border-radius: 10px; }
+    .slide-counter { font-size: 11px; }
     .keyboard-hint { display: none; }
-
-    /* Tags */
-    .tag { font-size: 0.7rem; padding: 3px 10px; margin-bottom: 12px; }
-
-    /* Ticker */
-    .slide2-ticker { bottom: 55px; }
-    .slide2-bottom-bar { bottom: 40px; }
   }
 
   /* Small phones */
-  @media (max-width: 420px) {
-    .slide { padding: 16px 18px; }
-    h1 { font-size: 1.8rem !important; }
-    h2 { font-size: 1.3rem; }
-    .subtitle { font-size: 0.85rem; }
-    .stats { gap: 12px; }
-    .stat .number { font-size: 1.5rem; }
-    .orbit-container { display: none; }
-    #slide-1 > div:last-child { max-width: 100% !important; }
-    .thankyou-title { font-size: 2.2rem !important; }
-    .qa-badge { font-size: 0.9rem; padding: 8px 20px; }
-    .try-it-card { padding: 14px 16px; }
+  @media (max-width: 480px) {
+    .slide { padding: 14px 16px 70px; }
+    h1 { font-size: 1.7rem !important; }
+    h2 { font-size: 1.2rem; }
+    .subtitle { font-size: 0.82rem; }
+    .cards.three-col { grid-template-columns: 1fr; }
+    .stats { gap: 10px; }
+    .stat .number { font-size: 1.4rem; }
+    .thankyou-title { font-size: 2rem !important; }
+    .qa-badge { font-size: 0.85rem; padding: 8px 18px; }
     .links-row { flex-direction: column; }
+    .link-chip { justify-content: center; }
+    .try-it-card { width: 100%; }
+    #slide-5 .animate-in > div { height: 40vh !important; max-height: 250px !important; }
   }
 </style>
 </head>
